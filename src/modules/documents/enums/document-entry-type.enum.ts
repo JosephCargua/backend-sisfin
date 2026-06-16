@@ -1,0 +1,4 @@
+export enum DocumentEntryType {
+  NON_ELECTRONIC = 'NON_ELECTRONIC',
+  PURCHASE_EXPENSE = 'PURCHASE_EXPENSE',
+}

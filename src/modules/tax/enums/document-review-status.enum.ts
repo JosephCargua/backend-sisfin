@@ -1,0 +1,5 @@
+export enum DocumentReviewStatus {
+  REVIEWED = 'REVIEWED',
+  NOT_REVIEWED = 'NOT_REVIEWED',
+  PENDING_REVIEW = 'PENDING_REVIEW',
+}
