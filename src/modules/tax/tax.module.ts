@@ -19,6 +19,8 @@ import { AccessKeyGeneratorService } from './services/access-key-generator.servi
 import { ElectronicDocumentRegistrationService } from './services/electronic-document-registration.service';
 import { XmlInvoiceParserService } from './services/xml-invoice-parser.service';
 
+import { AccountingModule } from '../accounting/accounting.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -28,6 +30,7 @@ import { XmlInvoiceParserService } from './services/xml-invoice-parser.service';
       Retention,
       ATS,
     ]),
+    AccountingModule,
   ],
   controllers: [
     ElectronicInvoiceController,
