@@ -306,28 +306,37 @@ export class ElectronicDocumentRegistrationService {
     }
 
     const lines = [];
+    let totalDebits = 0;
 
-    // Gasto/Costo (Debe) -> Asumimos netAmount a cuenta por pagar o gasto si tuviéramos un campo de gasto,
-    // Pero en el modelo actual tenemos payableAccountId, tipAccountId, costCenterId, recurringAccountId
-    // El 'netAmount' debe ir a la cuenta recurrente o cuenta contable del producto.
-    // Como simplificación y por el requerimiento de enviar el dinero a la cuenta seleccionada, 
-    // pondremos el total a la cuenta por pagar (Haber) y el neto a una cuenta de gasto (Debe).
-    // Si homologaron por cuentas de producto, cada línea va al debe
-    
-    const items = await this.getLineItems(id);
-    for (const item of items) {
-      if (item.mappedAccountId) {
-         lines.push({
-           accountId: item.mappedAccountId,
-           debit: Number(item.unitPrice) * Number(item.quantity),
-           credit: 0,
-           description: item.supplierDescription
-         });
+    if (doc.useRecurringAccount && doc.recurringAccountId) {
+      lines.push({
+        accountId: doc.recurringAccountId,
+        debit: total,
+        credit: 0,
+        description: `Gasto Factura ${doc.documentNumber} - ${doc.supplierName}`
+      });
+      totalDebits += total;
+    } else {
+      const items = await this.getLineItems(id);
+      for (const item of items) {
+        if (item.mappedAccountId) {
+           const lineTotal = Number(item.unitPrice) * Number(item.quantity);
+           lines.push({
+             accountId: item.mappedAccountId,
+             debit: lineTotal,
+             credit: 0,
+             description: item.supplierDescription
+           });
+           totalDebits += lineTotal;
+        }
+      }
+      
+      // Ajuste por IVA u otros para cuadrar el total de la factura
+      if (totalDebits < total && lines.length > 0) {
+         lines[0].debit += (total - totalDebits);
+         totalDebits = total;
       }
     }
-
-    // IVA (Debe) - Asumimos cuenta fija o omitimos si no tenemos ID de cuenta IVA
-    // Para no complicar, asignaremos todo al Haber (Payable) y el balance al Debe.
     
     // Cuenta por pagar (Haber)
     lines.push({
