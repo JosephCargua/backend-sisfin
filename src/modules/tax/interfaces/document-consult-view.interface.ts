@@ -19,4 +19,13 @@ export interface DocumentConsultView {
   retentionAmount: number;
   statusLabel: string;
   personTypeLabel: string;
+  payableAccountId?: string | null;
+  tipAccountId?: string | null;
+  costCenterId?: string | null;
+  recurringAccountId?: string | null;
+  useRecurringAccount?: boolean;
+  retentionIrCode?: string | null;
+  retentionIvaCode?: string | null;
+  generateRetention?: boolean;
+  updatePersonData?: boolean;
 }

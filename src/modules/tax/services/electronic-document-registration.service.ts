@@ -342,7 +342,6 @@ export class ElectronicDocumentRegistrationService {
         date: doc.issueDate ? new Date(doc.issueDate).toISOString() : new Date().toISOString(),
         reference: doc.documentNumber,
         description: `Procesamiento de factura ${doc.documentNumber}`,
-        status: JournalEntryStatus.POSTED,
         lines: lines
       });
     } catch (e) {
@@ -389,6 +388,15 @@ export class ElectronicDocumentRegistrationService {
       retentionAmount: Math.round(retentionAmount * 100) / 100,
       statusLabel: this.getStatusLabel(doc),
       personTypeLabel: 'Proveedor',
+      payableAccountId: doc.payableAccountId,
+      tipAccountId: doc.tipAccountId,
+      costCenterId: doc.costCenterId,
+      recurringAccountId: doc.recurringAccountId,
+      useRecurringAccount: doc.useRecurringAccount,
+      retentionIrCode: doc.retentionIrCode,
+      retentionIvaCode: doc.retentionIvaCode,
+      generateRetention: doc.generateRetention,
+      updatePersonData: doc.updatePersonData,
     };
   }
 
