@@ -450,7 +450,7 @@ export class ElectronicDocumentRegistrationService {
         ivaLabel: item.ivaLabel,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        isHomologated: false,
+        isHomologated: item.supplierCode === 'TXT', // Auto-homologar consolidado TXT
       }),
     );
 
@@ -484,7 +484,9 @@ export class ElectronicDocumentRegistrationService {
       reasons.push('Documento sin fecha de autorización registrada en el XML');
     }
 
-    if (parsed.lineItems.length > 0) {
+    // Ignorar ítems que son del consolidado TXT (ya nacen homologados)
+    const pendingItems = parsed.lineItems.filter(l => l.supplierCode !== 'TXT');
+    if (pendingItems.length > 0) {
       reasons.push(
         'Existen productos del proveedor pendientes de homologación',
       );
