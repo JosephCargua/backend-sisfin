@@ -241,21 +241,6 @@ export class ElectronicDocumentRegistrationService {
   ): Promise<ElectronicDocumentRegistration> {
     const doc = await this.findOne(id);
 
-    if (!dto.payableAccountId) {
-      throw new BadRequestException(
-        'La cuenta por pagar es obligatoria para homologar',
-      );
-    }
-
-    const pendingCount = await this.lineItemRepository.count({
-      where: { documentRegistrationId: id, isHomologated: false },
-    });
-    if (pendingCount > 0) {
-      throw new BadRequestException(
-        'Debe homologar todos los productos del proveedor antes de finalizar',
-      );
-    }
-
     doc.payableAccountId = dto.payableAccountId ?? null;
     doc.tipAccountId = dto.tipAccountId ?? null;
     doc.costCenterId = dto.costCenterId ?? null;
@@ -286,10 +271,6 @@ export class ElectronicDocumentRegistrationService {
     
     if (doc.processingStatus === DocumentProcessingStatus.PROCESSED) {
       throw new BadRequestException('El documento ya está procesado');
-    }
-
-    if (!doc.payableAccountId) {
-      throw new BadRequestException('El documento no tiene cuenta por pagar asignada, por favor homologue primero');
     }
 
     // Crear asiento contable (Journal Entry)
@@ -339,12 +320,14 @@ export class ElectronicDocumentRegistrationService {
     }
     
     // Cuenta por pagar (Haber)
-    lines.push({
-      accountId: doc.payableAccountId,
-      debit: 0,
-      credit: total,
-      description: `Factura ${doc.documentNumber} - ${doc.supplierName}`
-    });
+    if (doc.payableAccountId) {
+      lines.push({
+        accountId: doc.payableAccountId,
+        debit: 0,
+        credit: total,
+        description: `Factura ${doc.documentNumber} - ${doc.supplierName}`
+      });
+    }
 
     try {
       await this.journalEntryService.create({
