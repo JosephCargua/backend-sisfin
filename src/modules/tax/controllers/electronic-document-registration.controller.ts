@@ -103,6 +103,12 @@ export class ElectronicDocumentRegistrationController {
     return this.registrationService.markReadyToProcess(id);
   }
 
+  @Patch(':id/annul')
+  @ApiOperation({ summary: 'Anular documento del registro' })
+  annulDocument(@Param('id') id: string) {
+    return this.registrationService.annulDocument(id);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar documento del registro' })

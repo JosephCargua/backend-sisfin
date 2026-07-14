@@ -25,7 +25,9 @@ export interface DocumentConsultView {
   recurringAccountId?: string | null;
   useRecurringAccount?: boolean;
   retentionIrCode?: string | null;
-  retentionIvaCode?: string | null;
-  generateRetention?: boolean;
-  updatePersonData?: boolean;
+  retentionIvaCode: string | null;
+  generateRetention: boolean;
+  updatePersonData: boolean;
+  isAnnulled: boolean;
+  annulledDate: Date | null;
 }

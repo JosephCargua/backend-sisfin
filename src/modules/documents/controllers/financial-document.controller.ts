@@ -53,4 +53,28 @@ export class FinancialDocumentController {
   parseXml(@UploadedFile() file: UploadedFilePayload) {
     return this.documentService.parseXmlFile(file);
   }
+
+  @Post(':id/payment')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Registrar pago de un documento' })
+  registerPayment(@Param('id') id: string, @Body() data: any) {
+    // Mock implementation for registering a payment
+    return {
+      success: true,
+      message: 'Pago registrado correctamente',
+      data: { documentId: id, ...data }
+    };
+  }
+
+  @Post(':id/crossing')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cruzar un documento' })
+  documentCrossing(@Param('id') id: string, @Body() data: any) {
+    // Mock implementation for document crossing
+    return {
+      success: true,
+      message: 'Documento cruzado correctamente',
+      data: { documentId: id, ...data }
+    };
+  }
 }

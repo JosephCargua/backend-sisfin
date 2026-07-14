@@ -95,6 +95,12 @@ export class ElectronicDocumentRegistrationService {
       });
     }
 
+    if (filters.isAnnulled === 'true') {
+      qb.andWhere('doc.isAnnulled = true');
+    } else {
+      qb.andWhere('doc.isAnnulled = false');
+    }
+
     qb.orderBy('doc.issueDate', 'DESC').addOrderBy('doc.createdAt', 'DESC');
 
     const docs = await qb.getMany();
@@ -350,6 +356,16 @@ export class ElectronicDocumentRegistrationService {
     await this.repository.remove(doc);
   }
 
+  async annulDocument(id: string): Promise<ElectronicDocumentRegistration> {
+    const doc = await this.findOne(id);
+    if (doc.isAnnulled) {
+      throw new BadRequestException('El documento ya se encuentra anulado');
+    }
+    doc.isAnnulled = true;
+    doc.annulledDate = new Date();
+    return this.repository.save(doc);
+  }
+
   private toConsultView(doc: ElectronicDocumentRegistration): DocumentConsultView {
     const total = Number(doc.total ?? 0);
     const netAmount = total > 0 ? total / 1.15 : 0;
@@ -389,6 +405,8 @@ export class ElectronicDocumentRegistrationService {
       retentionIvaCode: doc.retentionIvaCode,
       generateRetention: doc.generateRetention,
       updatePersonData: doc.updatePersonData,
+      isAnnulled: doc.isAnnulled,
+      annulledDate: doc.annulledDate,
     };
   }
 

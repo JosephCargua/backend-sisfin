@@ -101,6 +101,12 @@ export class FinancialDocument {
   })
   lines: FinancialDocumentLine[];
 
+  @Column({ type: 'boolean', default: false })
+  isAnnulled: boolean;
+
+  @Column({ type: 'date', nullable: true })
+  annulledDate: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -101,6 +101,12 @@ export class ElectronicDocumentRegistration {
   @Column({ type: 'boolean', default: false })
   updatePersonData: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  isAnnulled: boolean;
+
+  @Column({ type: 'date', nullable: true })
+  annulledDate: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

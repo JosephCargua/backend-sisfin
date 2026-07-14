@@ -4,6 +4,8 @@ import { BankAccount } from './entities/bank-account.entity';
 import { CashAccount } from './entities/cash-account.entity';
 import { BankTransaction } from './entities/bank-transaction.entity';
 import { BankReconciliation } from './entities/bank-reconciliation.entity';
+import { FinancialDocumentPayment } from './entities/payment.entity';
+import { PaymentDetail } from './entities/payment-detail.entity';
 import { BankAccountController } from './controllers/bank-account.controller';
 import { CashAccountController } from './controllers/cash-account.controller';
 import { BankTransactionController } from './controllers/bank-transaction.controller';
@@ -18,6 +20,8 @@ import { BankTransactionService } from './services/bank-transaction.service';
       CashAccount,
       BankTransaction,
       BankReconciliation,
+      FinancialDocumentPayment,
+      PaymentDetail,
     ]),
   ],
   controllers: [

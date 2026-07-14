@@ -53,4 +53,8 @@ export class SearchDocumentsDto {
   @IsOptional()
   @IsString()
   purchaseOrder?: string;
+
+  @IsOptional()
+  @IsString()
+  isAnnulled?: string;
 }
