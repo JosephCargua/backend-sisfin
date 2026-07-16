@@ -15,6 +15,6 @@ import { AccountingModule } from '../accounting/accounting.module';
   ],
   controllers: [ReportController],
   providers: [ReportService, PdfGeneratorService, ExcelGeneratorService],
-  exports: [ReportService],
+  exports: [ReportService, PdfGeneratorService],
 })
 export class ReportsModule {}

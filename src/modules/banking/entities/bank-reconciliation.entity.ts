@@ -16,8 +16,20 @@ export class BankReconciliation {
   @Column({ type: 'date' })
   reconciliationDate: Date;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2 })
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
+  @Column({ type: 'varchar', length: 50, default: 'Pendiente' })
+  status: string; // 'Pendiente' | 'Concluida'
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
   statementBalance: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  accountingBalance: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  difference: number;
 
   @CreateDateColumn()
   createdAt: Date;

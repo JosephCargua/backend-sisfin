@@ -459,10 +459,10 @@ export class ReportService {
             return {
               code: account.code,
               accountName: account.name,
-              balance: ledger.finalBalance || 0,
+              balance: ledger?.finalBalance || 0,
             };
           } catch (error) {
-            // Si hay error al obtener el libro mayor, retornar balance 0
+            // Si hay error al obtener el libro mayor, retornar balance 0 sin crashear
             console.error(`Error getting ledger for account ${account.id}:`, error);
             return {
               code: account.code,

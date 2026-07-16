@@ -529,5 +529,165 @@ export class PdfGeneratorService {
       minimumFractionDigits: 2,
     }).format(numAmount);
   }
+
+  generateBankReconciliation(data: any): Promise<Buffer> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+        const buffers: Buffer[] = [];
+
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          resolve(Buffer.concat(buffers));
+        });
+        doc.on('error', (error: Error) => reject(error));
+
+        await this.addHeader(doc);
+        
+        doc.fontSize(20).font('Helvetica-Bold')
+          .text('Conciliación Bancaria', { align: 'center' });
+        doc.moveDown(2);
+
+        // Cabecera info
+        const startX = 50;
+        const valX = 180;
+        let currentY = doc.y;
+
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text('Fecha de Corte:', startX, currentY);
+        doc.font('Helvetica').text(data.reconciliationDate ? new Date(data.reconciliationDate).toLocaleDateString('es-EC') : '', valX, currentY);
+        
+        currentY += 15;
+        doc.font('Helvetica-Bold').text('Banco:', startX, currentY);
+        doc.font('Helvetica').text(data.accountName || 'N/A', valX, currentY);
+
+        currentY += 15;
+        doc.font('Helvetica-Bold').text('Descripción:', startX, currentY);
+        doc.font('Helvetica').text(data.description || '', valX, currentY, { width: 350 });
+        
+        const descHeight = doc.heightOfString(data.description || '', { width: 350 });
+        currentY += descHeight > 15 ? descHeight + 5 : 15;
+
+        doc.font('Helvetica-Bold').text('Saldo Estado de Cuenta:', startX, currentY);
+        doc.font('Helvetica').text(this.formatCurrency(data.statementBalance), valX, currentY);
+
+        currentY += 15;
+        doc.font('Helvetica-Bold').text('Estado:', startX, currentY);
+        doc.font('Helvetica').text(data.status || 'Concluida', valX, currentY);
+
+        doc.y = currentY + 30;
+
+        // Tabla de transacciones
+        doc.fontSize(12).font('Helvetica-Bold').text('Transacciones Afectadas:', { underline: true });
+        doc.moveDown(1);
+
+        const tableTop = doc.y;
+        const colWidths = [60, 240, 80, 80, 80];
+        const cols = [50, 110, 350, 430, 510];
+
+        const drawRowLine = (y: number) => {
+          doc.moveTo(50, y).lineTo(590, y).strokeColor('#000000').lineWidth(0.5).stroke();
+        };
+
+        // Header table
+        drawRowLine(doc.y);
+        doc.font('Helvetica-Bold').fontSize(8);
+        let rowY = doc.y + 5;
+        doc.text('Fecha', cols[0], rowY, { width: colWidths[0] });
+        doc.text('Detalle', cols[1], rowY, { width: colWidths[1] });
+        doc.text('Referencia', cols[2], rowY, { width: colWidths[2] });
+        doc.text('Tipo', cols[3], rowY, { width: colWidths[3] });
+        doc.text('Monto', cols[4], rowY, { width: colWidths[4], align: 'right' });
+        doc.y = rowY + 15;
+        drawRowLine(doc.y);
+
+        doc.font('Helvetica').fontSize(8);
+        rowY = doc.y + 5;
+        
+        // Saldo inicial referencial
+        doc.font('Helvetica-Bold');
+        doc.text('Saldo Inicial:', cols[1], rowY, { width: colWidths[1] });
+        doc.font('Helvetica');
+        const initialBalance = (data.statementBalance || 0) - (data.accountingBalance || 0);
+        doc.text(this.formatCurrency(initialBalance), cols[4], rowY, { width: colWidths[4], align: 'right' });
+        doc.y = rowY + 15;
+        drawRowLine(doc.y);
+
+        if (data.transactions && data.transactions.length > 0) {
+          data.transactions.forEach((tx: any) => {
+            rowY = doc.y + 5;
+            
+            // Check if page break is needed
+            if (rowY > 700) {
+              doc.addPage();
+              drawRowLine(doc.y);
+              rowY = doc.y + 5;
+            }
+
+            const dateStr = tx.date ? new Date(tx.date).toLocaleDateString('es-EC') : '';
+            const detailStr = tx.description || tx.transactionType || '';
+            const refStr = tx.reference || tx.checkNumber || tx.paymentMethod || '';
+            const typeStr = tx.transactionType === 'Egreso' ? '(-) CHE/TRANS' : '(+) DEP/TRANS';
+
+            const heightDet = doc.heightOfString(detailStr, { width: colWidths[1] });
+            const heightRow = Math.max(heightDet, 10);
+
+            doc.text(dateStr, cols[0], rowY, { width: colWidths[0] });
+            doc.text(detailStr, cols[1], rowY, { width: colWidths[1] });
+            doc.text(refStr, cols[2], rowY, { width: colWidths[2] });
+            doc.text(typeStr, cols[3], rowY, { width: colWidths[3] });
+            doc.text(this.formatCurrency(tx.amount), cols[4], rowY, { width: colWidths[4], align: 'right' });
+            
+            doc.y = rowY + heightRow + 5;
+            drawRowLine(doc.y);
+          });
+        }
+
+        // Saldo final line inside table
+        rowY = doc.y + 5;
+        if (rowY > 700) {
+          doc.addPage();
+          drawRowLine(doc.y);
+          rowY = doc.y + 5;
+        }
+        doc.font('Helvetica-Bold');
+        doc.text(`Saldo bancario al ${data.reconciliationDate ? new Date(data.reconciliationDate).toLocaleDateString('es-EC') : ''}`, cols[1], rowY, { width: colWidths[1] });
+        doc.font('Helvetica');
+        doc.text(this.formatCurrency(data.statementBalance), cols[4], rowY, { width: colWidths[4], align: 'right' });
+        doc.y = rowY + 15;
+        drawRowLine(doc.y);
+
+        doc.moveDown(2);
+        
+        // Tabla de Resumen
+        doc.fontSize(12).font('Helvetica-Bold').text('Resumen:', { underline: true });
+        doc.moveDown(1);
+        
+        drawRowLine(doc.y);
+        rowY = doc.y + 5;
+        doc.font('Helvetica-Bold').fontSize(9);
+        const resDate = data.reconciliationDate ? new Date(data.reconciliationDate).toLocaleDateString('es-EC') : '';
+        doc.text(`Saldo bancario al ${resDate}`, cols[0], rowY, { width: 170 });
+        doc.text(`Saldo contable al ${resDate}`, cols[0] + 180, rowY, { width: 170 });
+        doc.text('Diferencia', cols[0] + 360, rowY, { width: 100 });
+        doc.y = rowY + 15;
+        drawRowLine(doc.y);
+        
+        rowY = doc.y + 5;
+        doc.font('Helvetica').fontSize(9);
+        doc.text(this.formatCurrency(data.statementBalance), cols[0], rowY, { width: 170 });
+        doc.text(this.formatCurrency(data.accountingBalance), cols[0] + 180, rowY, { width: 170 });
+        doc.text(this.formatCurrency(data.difference), cols[0] + 360, rowY, { width: 100 });
+        doc.y = rowY + 15;
+        drawRowLine(doc.y);
+
+        this.addSignaturesSection(doc);
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
 }
 

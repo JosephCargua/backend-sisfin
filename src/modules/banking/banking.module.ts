@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ReportsModule } from '../reports/reports.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankAccount } from './entities/bank-account.entity';
 import { CashAccount } from './entities/cash-account.entity';
@@ -16,6 +17,7 @@ import { BankTransactionService } from './services/bank-transaction.service';
 
 @Module({
   imports: [
+    ReportsModule,
     TypeOrmModule.forFeature([
       BankAccount,
       CashAccount,

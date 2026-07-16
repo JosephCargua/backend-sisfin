@@ -47,14 +47,16 @@ export class BankTransaction {
   checkNumber: string;
 
   @Column({ type: 'date', nullable: true })
-  checkDate: Date;
-
-  @CreateDateColumn()
-  createdAt: Date;
+  checkDate: Date | null;
 
   @OneToMany(() => BankTransactionDetail, (detail) => detail.bankTransaction, {
     cascade: true,
   })
   details: BankTransactionDetail[];
-}
 
+  @Column({ type: 'uuid', nullable: true })
+  bankReconciliationId: string | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}
