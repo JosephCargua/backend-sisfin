@@ -71,6 +71,28 @@ export class BankTransactionService {
     startDate?: string,
     endDate?: string,
   ): Promise<any> {
+    
+    // Calcular Saldo Inicial (sumatoria histórica antes del startDate)
+    let initialBalance = 0;
+    if (startDate) {
+      const prevTransactions = await this.bankTransactionRepository
+        .createQueryBuilder('tx')
+        .where('tx.bankAccountId = :bankAccountId', { bankAccountId })
+        .andWhere('tx.date < :startDate', { startDate: new Date(startDate) })
+        .getMany();
+        
+      initialBalance = prevTransactions.reduce((acc, tx) => {
+        // Asumimos que los egresos restan y los ingresos suman
+        // Si tienes tx.transactionType === 'Egreso'
+        const amount = Number(tx.amount) || 0;
+        if (tx.transactionType === 'Egreso' || tx.type === 'Egreso') {
+          return acc - amount;
+        } else {
+          return acc + amount;
+        }
+      }, 0);
+    }
+
     const queryBuilder = this.bankTransactionRepository
       .createQueryBuilder('transaction')
       .where('transaction.bankAccountId = :bankAccountId', { bankAccountId });
@@ -96,6 +118,7 @@ export class BankTransactionService {
       bankAccountId,
       startDate,
       endDate,
+      initialBalance,
       transactions,
       count: transactions.length,
     };
