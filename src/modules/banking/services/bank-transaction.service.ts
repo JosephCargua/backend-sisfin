@@ -100,5 +100,69 @@ export class BankTransactionService {
       count: transactions.length,
     };
   }
+
+  async findAll(): Promise<BankTransaction[]> {
+    return this.bankTransactionRepository.find({
+      relations: ['details'],
+      order: { date: 'DESC', createdAt: 'DESC' },
+    });
+  }
+
+  async findOne(id: string): Promise<BankTransaction> {
+    const transaction = await this.bankTransactionRepository.findOne({
+      where: { id },
+      relations: ['details'],
+    });
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
+    }
+    return transaction;
+  }
+
+  async update(id: string, updateDto: CreateBankTransactionDto): Promise<BankTransaction> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const existing = await queryRunner.manager.findOne(BankTransaction, {
+        where: { id },
+        relations: ['details'],
+      });
+
+      if (!existing) {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+
+      // Update basic fields
+      queryRunner.manager.merge(BankTransaction, existing, {
+        ...updateDto,
+        date: new Date(updateDto.date),
+        checkDate: updateDto.checkDate ? new Date(updateDto.checkDate) : undefined,
+      });
+
+      // Handle details
+      if (updateDto.details) {
+        // Remove existing details
+        if (existing.details && existing.details.length > 0) {
+          await queryRunner.manager.remove(existing.details);
+        }
+        
+        // Add new details
+        existing.details = updateDto.details.map(detailDto => {
+          return queryRunner.manager.create(BankTransactionDetail, detailDto);
+        });
+      }
+
+      const saved = await queryRunner.manager.save(existing);
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 }
 

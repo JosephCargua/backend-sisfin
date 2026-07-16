@@ -21,6 +21,7 @@ import { BankAccount } from '../modules/banking/entities/bank-account.entity';
 import { CashAccount } from '../modules/banking/entities/cash-account.entity';
 import { BankTransaction } from '../modules/banking/entities/bank-transaction.entity';
 import { BankReconciliation } from '../modules/banking/entities/bank-reconciliation.entity';
+import { BankTransactionDetail } from '../modules/banking/entities/bank-transaction-detail.entity';
 import { ElectronicInvoice } from '../modules/tax/entities/electronic-invoice.entity';
 import { ElectronicDocumentRegistration } from '../modules/tax/entities/electronic-document-registration.entity';
 import { ElectronicDocumentLineItem } from '../modules/tax/entities/electronic-document-line-item.entity';
@@ -65,6 +66,7 @@ export const typeOrmConfig = (
     BankAccount,
     CashAccount,
     BankTransaction,
+    BankTransactionDetail,
     BankReconciliation,
     ElectronicInvoice,
     ElectronicDocumentRegistration,

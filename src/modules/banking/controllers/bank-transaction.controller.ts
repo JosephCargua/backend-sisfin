@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Param,
   Query,
@@ -44,6 +45,26 @@ export class BankTransactionController {
       startDate,
       endDate,
     );
+  }
+  @Get()
+  @ApiOperation({ summary: 'Get all bank transactions' })
+  findAll() {
+    return this.bankTransactionService.findAll();
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a single transaction by ID' })
+  findOne(@Param('id') id: string) {
+    return this.bankTransactionService.findOne(id);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update a bank transaction' })
+  update(
+    @Param('id') id: string,
+    @Body() updateTransactionDto: CreateBankTransactionDto,
+  ) {
+    return this.bankTransactionService.update(id, updateTransactionDto);
   }
 }
 
