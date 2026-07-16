@@ -5,6 +5,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { BankTransaction } from '../entities/bank-transaction.entity';
+import { BankTransactionDetail } from '../entities/bank-transaction-detail.entity';
 import { BankAccount } from '../entities/bank-account.entity';
 import { CreateBankTransactionDto } from '../dto/create-bank-transaction.dto';
 
@@ -37,7 +38,15 @@ export class BankTransactionService {
       const transaction = queryRunner.manager.create(BankTransaction, {
         ...createTransactionDto,
         date: new Date(createTransactionDto.date),
+        checkDate: createTransactionDto.checkDate ? new Date(createTransactionDto.checkDate) : null,
       });
+
+      // Si hay detalles, mapéalos
+      if (createTransactionDto.details && createTransactionDto.details.length > 0) {
+        transaction.details = createTransactionDto.details.map(detailDto => {
+          return queryRunner.manager.create(BankTransactionDetail, detailDto);
+        });
+      }
 
       const saved = await queryRunner.manager.save(transaction);
       await queryRunner.commitTransaction();

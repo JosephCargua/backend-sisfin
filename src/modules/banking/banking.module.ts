@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankAccount } from './entities/bank-account.entity';
 import { CashAccount } from './entities/cash-account.entity';
 import { BankTransaction } from './entities/bank-transaction.entity';
+import { BankTransactionDetail } from './entities/bank-transaction-detail.entity';
 import { BankReconciliation } from './entities/bank-reconciliation.entity';
 import { FinancialDocumentPayment } from './entities/payment.entity';
 import { PaymentDetail } from './entities/payment-detail.entity';
@@ -19,6 +20,7 @@ import { BankTransactionService } from './services/bank-transaction.service';
       BankAccount,
       CashAccount,
       BankTransaction,
+      BankTransactionDetail,
       BankReconciliation,
       FinancialDocumentPayment,
       PaymentDetail,

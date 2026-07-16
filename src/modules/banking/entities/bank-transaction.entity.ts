@@ -3,7 +3,9 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { BankTransactionDetail } from './bank-transaction-detail.entity';
 
 @Entity('bank_transactions')
 export class BankTransaction {
@@ -16,7 +18,7 @@ export class BankTransaction {
   @Column({ type: 'date' })
   date: Date;
 
-  @Column({ type: 'varchar', length: 200 })
+  @Column({ type: 'varchar', length: 200, nullable: true })
   description: string;
 
   @Column({ type: 'decimal', precision: 18, scale: 2 })
@@ -25,7 +27,34 @@ export class BankTransaction {
   @Column({ type: 'varchar', length: 20 })
   type: string;
 
+  // Nuevos campos según frontend
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  transactionType: string; // Egreso / Ingreso
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  paymentMethod: string; // Cheque, Depósito, Transferencia
+
+  @Column({ type: 'boolean', default: false })
+  isAnnulled: boolean;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  personName: string;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  payToOrderOf: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  checkNumber: string;
+
+  @Column({ type: 'date', nullable: true })
+  checkDate: Date;
+
   @CreateDateColumn()
   createdAt: Date;
+
+  @OneToMany(() => BankTransactionDetail, (detail) => detail.bankTransaction, {
+    cascade: true,
+  })
+  details: BankTransactionDetail[];
 }
 
