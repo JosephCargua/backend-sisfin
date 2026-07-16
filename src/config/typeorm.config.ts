@@ -76,7 +76,7 @@ export const typeOrmConfig = (
     FinancialDocument,
     FinancialDocumentLine,
   ],
-  synchronize: configService.get('NODE_ENV') === 'development',
+  synchronize: true, // Forzar sincronización para que Render cree las tablas
   logging: configService.get('NODE_ENV') === 'development',
   migrations: ['dist/migrations/*.js'],
   migrationsRun: false,
