@@ -38,7 +38,7 @@ export class BankTransactionService {
       const transaction = queryRunner.manager.create(BankTransaction, {
         ...createTransactionDto,
         date: new Date(createTransactionDto.date),
-        checkDate: createTransactionDto.checkDate ? new Date(createTransactionDto.checkDate) : null,
+        checkDate: createTransactionDto.checkDate ? new Date(createTransactionDto.checkDate) : undefined,
       });
 
       // Si hay detalles, mapéalos
