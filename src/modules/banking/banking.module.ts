@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ReportsModule } from '../reports/reports.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankAccount } from './entities/bank-account.entity';
+import { CheckSequence } from './entities/check-sequence.entity';
 import { CashAccount } from './entities/cash-account.entity';
 import { BankTransaction } from './entities/bank-transaction.entity';
 import { BankTransactionDetail } from './entities/bank-transaction-detail.entity';
@@ -23,6 +24,7 @@ import { BankReconciliationService } from './services/bank-reconciliation.servic
     ReportsModule,
     TypeOrmModule.forFeature([
       BankAccount,
+      CheckSequence,
       CashAccount,
       BankTransaction,
       BankTransactionDetail,

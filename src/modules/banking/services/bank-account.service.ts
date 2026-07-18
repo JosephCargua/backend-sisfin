@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { BankAccount } from '../entities/bank-account.entity';
+import { CheckSequence } from '../entities/check-sequence.entity';
 import { CreateBankAccountDto } from '../dto/create-bank-account.dto';
 
 @Injectable()
@@ -30,9 +31,17 @@ export class BankAccountService {
         throw new BadRequestException('Bank account number already exists');
       }
 
+      const { checkSequences, ...accountData } = createBankAccountDto;
+
       const bankAccount = queryRunner.manager.create(BankAccount, {
-        ...createBankAccountDto,
+        ...accountData,
       });
+
+      if (checkSequences && checkSequences.length > 0) {
+        bankAccount.checkSequences = checkSequences.map(seq => {
+          return queryRunner.manager.create(CheckSequence, seq);
+        });
+      }
 
       const saved = await queryRunner.manager.save(bankAccount);
       await queryRunner.commitTransaction();
