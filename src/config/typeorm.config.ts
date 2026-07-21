@@ -18,6 +18,7 @@ import { Supplier } from '../modules/payables/entities/supplier.entity';
 import { SupplierInvoice } from '../modules/payables/entities/supplier-invoice.entity';
 import { SupplierPayment } from '../modules/payables/entities/supplier-payment.entity';
 import { BankAccount } from '../modules/banking/entities/bank-account.entity';
+import { CheckSequence } from '../modules/banking/entities/check-sequence.entity';
 import { CashAccount } from '../modules/banking/entities/cash-account.entity';
 import { BankTransaction } from '../modules/banking/entities/bank-transaction.entity';
 import { BankReconciliation } from '../modules/banking/entities/bank-reconciliation.entity';
@@ -64,6 +65,7 @@ export const typeOrmConfig = (
     SupplierInvoice,
     SupplierPayment,
     BankAccount,
+    CheckSequence,
     CashAccount,
     BankTransaction,
     BankTransactionDetail,
