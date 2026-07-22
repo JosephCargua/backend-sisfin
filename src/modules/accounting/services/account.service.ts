@@ -74,6 +74,27 @@ export class AccountService {
     }
   }
 
+  async update(id: string, updateAccountDto: Partial<CreateAccountDto>, userId?: string): Promise<Account> {
+    const account = await this.accountRepository.findOne({ where: { id } });
+    if (!account) {
+      throw new NotFoundException(`Account with ID ${id} not found`);
+    }
+
+    if (updateAccountDto.code && updateAccountDto.code !== account.code) {
+      const existingCode = await this.accountRepository.findOne({ where: { code: updateAccountDto.code } });
+      if (existingCode) {
+        throw new BadRequestException('Account code already exists');
+      }
+    }
+
+    await this.accountRepository.update(id, {
+      ...updateAccountDto,
+      updatedBy: userId,
+    });
+
+    return this.findOne(id);
+  }
+
   async findAll(): Promise<Account[]> {
     return this.accountRepository.find({
       where: { isActive: true },

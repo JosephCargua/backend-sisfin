@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   Patch,
+  Put,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JournalEntryService } from '../services/journal-entry.service';
@@ -38,8 +39,9 @@ export class JournalEntryController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('status') status?: JournalEntryStatus,
+    @Query('searchTerm') searchTerm?: string,
   ) {
-    return this.journalEntryService.findAll(startDate, endDate, status);
+    return this.journalEntryService.findAll(startDate, endDate, status, searchTerm);
   }
 
   @Get('general-ledger')
@@ -61,6 +63,17 @@ export class JournalEntryController {
   @ApiResponse({ status: 404, description: 'Journal entry not found' })
   findOne(@Param('id') id: string) {
     return this.journalEntryService.findOne(id);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update a journal entry' })
+  @ApiResponse({ status: 200, description: 'Journal entry updated successfully' })
+  @ApiResponse({ status: 404, description: 'Journal entry not found' })
+  update(
+    @Param('id') id: string,
+    @Body() updateDto: CreateJournalEntryDto,
+  ) {
+    return this.journalEntryService.update(id, updateDto);
   }
 
   @Patch(':id/post')

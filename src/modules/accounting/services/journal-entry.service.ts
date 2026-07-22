@@ -188,6 +188,7 @@ export class JournalEntryService {
     startDate?: string,
     endDate?: string,
     status?: JournalEntryStatus,
+    searchTerm?: string,
   ): Promise<JournalEntry[]> {
     const queryBuilder =
       this.journalEntryRepository.createQueryBuilder('entry');
@@ -206,6 +207,13 @@ export class JournalEntryService {
 
     if (status) {
       queryBuilder.andWhere('entry.status = :status', { status });
+    }
+
+    if (searchTerm) {
+      queryBuilder.andWhere(
+        '(entry.entryNumber ILIKE :search OR entry.description ILIKE :search)',
+        { search: `%${searchTerm}%` },
+      );
     }
 
     return queryBuilder
@@ -311,6 +319,68 @@ export class JournalEntryService {
       throw new BadRequestException(
         `Error generating general ledger: ${error.message || 'Unknown error'}`,
       );
+    }
+  }
+
+  async update(
+    id: string,
+    updateDto: CreateJournalEntryDto,
+    userId?: string,
+  ): Promise<JournalEntry> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const entry = await queryRunner.manager.findOne(JournalEntry, {
+        where: { id },
+        relations: ['lines'],
+      });
+
+      if (!entry) {
+        throw new NotFoundException(`Journal entry with ID ${id} not found`);
+      }
+
+      this.validateDoubleEntry(updateDto.lines);
+
+      const totalDebit = updateDto.lines.reduce(
+        (sum, line) => new Decimal(sum).plus(line.debit).toNumber(),
+        0,
+      );
+
+      const totalCredit = updateDto.lines.reduce(
+        (sum, line) => new Decimal(sum).plus(line.credit).toNumber(),
+        0,
+      );
+
+      await queryRunner.manager.update(JournalEntry, id, {
+        date: new Date(updateDto.date),
+        description: updateDto.description,
+        totalDebit,
+        totalCredit,
+        updatedBy: userId,
+      });
+
+      // Eliminar lineas anteriores
+      await queryRunner.manager.delete(JournalEntryLine, { journalEntryId: id });
+
+      // Crear nuevas
+      const lines = updateDto.lines.map((line) =>
+        queryRunner.manager.create(JournalEntryLine, {
+          ...line,
+          journalEntryId: id,
+        }),
+      );
+
+      await queryRunner.manager.save(lines);
+
+      await queryRunner.commitTransaction();
+      return this.findOne(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 

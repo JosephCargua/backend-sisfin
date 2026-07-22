@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Body,
   Param,
   HttpCode,
@@ -54,6 +55,14 @@ export class AccountController {
   @ApiResponse({ status: 404, description: 'Account not found' })
   findByCode(@Param('code') code: string) {
     return this.accountService.findByCode(code);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update an account' })
+  @ApiResponse({ status: 200, description: 'Account updated successfully' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  update(@Param('id') id: string, @Body() updateAccountDto: Partial<CreateAccountDto>) {
+    return this.accountService.update(id, updateAccountDto);
   }
 
   @Patch(':id/deactivate')

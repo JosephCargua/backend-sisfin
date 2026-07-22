@@ -6,6 +6,7 @@ import { DocumentCrossing } from './entities/document-crossing.entity';
 import { FinancialDocumentService } from './services/financial-document.service';
 import { FinancialDocumentController } from './controllers/financial-document.controller';
 import { TaxModule } from '../tax/tax.module';
+import { AccountingModule } from '../accounting/accounting.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TaxModule } from '../tax/tax.module';
       DocumentCrossing,
     ]),
     TaxModule,
+    AccountingModule,
   ],
   controllers: [FinancialDocumentController],
   providers: [FinancialDocumentService],

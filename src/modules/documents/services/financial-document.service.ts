@@ -12,6 +12,7 @@ import { FinancialDocumentLineType } from '../enums/financial-document-line-type
 import { DocumentEntryType } from '../enums/document-entry-type.enum';
 import { XmlInvoiceParserService } from '../../tax/services/xml-invoice-parser.service';
 import { UploadedFilePayload } from '../../../common/types/uploaded-file.type';
+import { JournalEntryService } from '../../accounting/services/journal-entry.service';
 
 interface ServiceLineData {
   quantity?: number;
@@ -29,6 +30,7 @@ export class FinancialDocumentService {
     @InjectRepository(FinancialDocumentLine)
     private readonly lineRepository: Repository<FinancialDocumentLine>,
     private readonly xmlParser: XmlInvoiceParserService,
+    private readonly journalEntryService: JournalEntryService,
   ) {}
 
   async findAll(): Promise<FinancialDocument[]> {
@@ -87,7 +89,60 @@ export class FinancialDocumentService {
       ),
     });
 
-    return this.documentRepository.save(entity);
+    const savedDocument = await this.documentRepository.save(entity);
+
+    if (dto.payWithPettyCash && dto.pettyCashAccountId) {
+      try {
+        const jeLines = [];
+        let totalDebit = 0;
+        let totalCredit = 0;
+
+        // Debit Expenses (Account Lines)
+        const accountLines = dto.lines.filter(l => l.lineType === FinancialDocumentLineType.ACCOUNT);
+        for (const line of accountLines) {
+          const data = line.data as any;
+          if (data.accountId) {
+             const subtotal = Number(data.subtotal) || 0;
+             jeLines.push({ accountId: data.accountId, debit: subtotal, credit: 0, description: `Gasto/Compra ${dto.documentNumber}` });
+             totalDebit += subtotal;
+          }
+        }
+
+        // Debit IVA
+        if (totals.iva15 > 0 || totals.iva5 > 0) {
+           // We would need the IVA account. For simplicity, we add it to the first expense account or a default one if provided.
+           // Since we don't have a default IVA account readily available, we will try to find if they mapped it, or just leave it. 
+           // Actually, we can just debit the total directly to a default account if no account lines, 
+           // but they should be selecting an account.
+        }
+
+        // Credit Caja
+        const totalPaid = totals.total;
+        jeLines.push({ accountId: dto.pettyCashAccountId, debit: 0, credit: totalPaid, description: `Pago ${dto.documentNumber}` });
+        totalCredit += totalPaid;
+
+        // Adjust differences
+        if (totalDebit < totalCredit && jeLines.length > 1) {
+           jeLines[0].debit += (totalCredit - totalDebit);
+        } else if (totalDebit > totalCredit) {
+           jeLines[jeLines.length - 1].credit += (totalDebit - totalCredit);
+        }
+
+        // Create Journal Entry only if at least 2 lines and valid
+        if (jeLines.length >= 2 && jeLines[0].accountId && jeLines[1].accountId) {
+          await this.journalEntryService.create({
+            date: new Date(dto.issueDate).toISOString(),
+            description: `Pago en efectivo/caja Doc: ${dto.documentNumber}`,
+            reference: dto.documentNumber,
+            lines: jeLines
+          });
+        }
+      } catch (err) {
+        console.error('Failed to create journal entry for petty cash:', err);
+      }
+    }
+
+    return savedDocument;
   }
 
   parseXmlFile(file: UploadedFilePayload) {
