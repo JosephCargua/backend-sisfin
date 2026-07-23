@@ -9,6 +9,8 @@ import { BankTransactionDetail } from './entities/bank-transaction-detail.entity
 import { BankReconciliation } from './entities/bank-reconciliation.entity';
 import { FinancialDocumentPayment } from './entities/payment.entity';
 import { PaymentDetail } from './entities/payment-detail.entity';
+import { JournalEntry } from '../accounting/entities/journal-entry.entity';
+import { JournalEntryLine } from '../accounting/entities/journal-entry-line.entity';
 import { BankAccountController } from './controllers/bank-account.controller';
 import { CashAccountController } from './controllers/cash-account.controller';
 import { BankTransactionController } from './controllers/bank-transaction.controller';
@@ -31,6 +33,8 @@ import { BankReconciliationService } from './services/bank-reconciliation.servic
       BankReconciliation,
       FinancialDocumentPayment,
       PaymentDetail,
+      JournalEntry,
+      JournalEntryLine
     ]),
   ],
   controllers: [

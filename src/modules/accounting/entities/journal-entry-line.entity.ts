@@ -43,5 +43,8 @@ export class JournalEntryLine {
 
   @Column({ type: 'text', nullable: true })
   reference: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  bankReconciliationId: string | null;
 }
 

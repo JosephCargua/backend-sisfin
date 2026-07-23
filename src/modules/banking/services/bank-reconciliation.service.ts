@@ -6,6 +6,8 @@ import { BankTransaction } from '../entities/bank-transaction.entity';
 import { CreateBankReconciliationDto } from '../dto/create-bank-reconciliation.dto';
 import { PdfGeneratorService } from '../../reports/services/pdf-generator.service';
 import { BankAccount } from '../entities/bank-account.entity';
+import { JournalEntryLine } from '../../accounting/entities/journal-entry-line.entity';
+import { JournalEntryStatus } from '../../accounting/enums/journal-entry-status.enum';
 
 @Injectable()
 export class BankReconciliationService {
@@ -16,6 +18,8 @@ export class BankReconciliationService {
     private readonly bankTransactionRepository: Repository<BankTransaction>,
     @InjectRepository(BankAccount)
     private readonly bankAccountRepository: Repository<BankAccount>,
+    @InjectRepository(JournalEntryLine)
+    private readonly journalEntryLineRepository: Repository<JournalEntryLine>,
     private readonly pdfGeneratorService: PdfGeneratorService,
   ) {}
 
@@ -34,6 +38,10 @@ export class BankReconciliationService {
 
     if (createDto.transactionIds && createDto.transactionIds.length > 0) {
       await this.bankTransactionRepository.update(
+        { id: In(createDto.transactionIds) },
+        { bankReconciliationId: saved.id }
+      );
+      await this.journalEntryLineRepository.update(
         { id: In(createDto.transactionIds) },
         { bankReconciliationId: saved.id }
       );
@@ -65,9 +73,17 @@ export class BankReconciliationService {
         { bankReconciliationId: id },
         { bankReconciliationId: null }
       );
+      await this.journalEntryLineRepository.update(
+        { bankReconciliationId: id },
+        { bankReconciliationId: null }
+      );
       
       if (updateDto.transactionIds.length > 0) {
         await this.bankTransactionRepository.update(
+          { id: In(updateDto.transactionIds) },
+          { bankReconciliationId: id }
+        );
+        await this.journalEntryLineRepository.update(
           { id: In(updateDto.transactionIds) },
           { bankReconciliationId: id }
         );
@@ -88,6 +104,10 @@ export class BankReconciliationService {
       { bankReconciliationId: id },
       { bankReconciliationId: null }
     );
+    await this.journalEntryLineRepository.update(
+      { bankReconciliationId: id },
+      { bankReconciliationId: null }
+    );
     await this.bankReconciliationRepository.remove(recon);
   }
 
@@ -99,6 +119,32 @@ export class BankReconciliationService {
       order: { date: 'ASC' },
     });
 
+    const journalLines = await this.journalEntryLineRepository.find({
+      where: { bankReconciliationId: id },
+      relations: ['journalEntry'],
+    });
+
+    const mappedJournalLines = journalLines.map(line => ({
+      id: line.id,
+      bankAccountId: line.accountId,
+      date: line.journalEntry.date,
+      description: line.description || line.journalEntry.description || 'Asiento Contable',
+      amount: line.debit > 0 ? line.debit : line.credit,
+      type: line.debit > 0 ? 'Ingreso' : 'Egreso',
+      transactionType: 'Asiento Contable',
+      paymentMethod: 'Caja/Banco',
+      isAnnulled: line.journalEntry.status === JournalEntryStatus.CANCELLED,
+      personName: null,
+      payToOrderOf: null,
+      checkNumber: line.reference || line.journalEntry.reference,
+      checkDate: null,
+      bankReconciliationId: line.bankReconciliationId,
+      createdAt: line.journalEntry.createdAt,
+    }));
+
+    const combined = [...transactions, ...mappedJournalLines];
+    combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     const data = {
       reconciliationDate: recon.reconciliationDate,
       accountName: bankAccount ? bankAccount.bankName : 'N/A',
@@ -107,7 +153,7 @@ export class BankReconciliationService {
       accountingBalance: recon.accountingBalance,
       difference: recon.difference,
       status: recon.status,
-      transactions: transactions,
+      transactions: combined,
     };
 
     return this.pdfGeneratorService.generateBankReconciliation(data);

@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { FinancialDocument } from '../entities/financial-document.entity';
 import { FinancialDocumentLine } from '../entities/financial-document-line.entity';
 import { CreateFinancialDocumentDto } from '../dto/create-financial-document.dto';
@@ -31,6 +31,7 @@ export class FinancialDocumentService {
     private readonly lineRepository: Repository<FinancialDocumentLine>,
     private readonly xmlParser: XmlInvoiceParserService,
     private readonly journalEntryService: JournalEntryService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(): Promise<FinancialDocument[]> {
@@ -118,7 +119,17 @@ export class FinancialDocumentService {
 
         // Credit Caja
         const totalPaid = totals.total;
-        jeLines.push({ accountId: dto.pettyCashAccountId, debit: 0, credit: totalPaid, description: `Pago ${dto.documentNumber}` });
+        let realBankAccountId = dto.pettyCashAccountId;
+        try {
+          const res = await this.dataSource.query(`SELECT "accountId" FROM cash_accounts WHERE id = $1`, [dto.pettyCashAccountId]);
+          if (res && res.length > 0 && res[0].accountId) {
+             realBankAccountId = res[0].accountId;
+          }
+        } catch (e) {
+          console.error('Error resolving cash account ID:', e);
+        }
+
+        jeLines.push({ accountId: realBankAccountId, debit: 0, credit: totalPaid, description: `Pago ${dto.documentNumber}` });
         totalCredit += totalPaid;
 
         // Adjust differences

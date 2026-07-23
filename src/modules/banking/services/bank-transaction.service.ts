@@ -8,6 +8,8 @@ import { BankTransaction } from '../entities/bank-transaction.entity';
 import { BankTransactionDetail } from '../entities/bank-transaction-detail.entity';
 import { BankAccount } from '../entities/bank-account.entity';
 import { CreateBankTransactionDto } from '../dto/create-bank-transaction.dto';
+import { JournalEntryLine } from '../../accounting/entities/journal-entry-line.entity';
+import { JournalEntryStatus } from '../../accounting/enums/journal-entry-status.enum';
 
 @Injectable()
 export class BankTransactionService {
@@ -16,6 +18,8 @@ export class BankTransactionService {
     private bankTransactionRepository: Repository<BankTransaction>,
     @InjectRepository(BankAccount)
     private bankAccountRepository: Repository<BankAccount>,
+    @InjectRepository(JournalEntryLine)
+    private journalEntryLineRepository: Repository<JournalEntryLine>,
     private dataSource: DataSource,
   ) {}
 
@@ -59,11 +63,39 @@ export class BankTransactionService {
     }
   }
 
-  async findByBankAccount(bankAccountId: string): Promise<BankTransaction[]> {
-    return this.bankTransactionRepository.find({
+  async findByBankAccount(bankAccountId: string): Promise<any[]> {
+    const transactions = await this.bankTransactionRepository.find({
       where: { bankAccountId },
       order: { date: 'DESC', createdAt: 'DESC' },
     });
+
+    const journalLines = await this.journalEntryLineRepository.find({
+      where: { accountId: bankAccountId },
+      relations: ['journalEntry'],
+    });
+
+    const mappedJournalLines = journalLines.map(line => ({
+      id: line.id,
+      bankAccountId: line.accountId,
+      date: line.journalEntry.date,
+      description: line.description || line.journalEntry.description || 'Asiento Contable',
+      amount: line.debit > 0 ? line.debit : line.credit,
+      type: line.debit > 0 ? 'Ingreso' : 'Egreso',
+      transactionType: 'Asiento Contable',
+      paymentMethod: 'Caja/Banco',
+      isAnnulled: line.journalEntry.status === JournalEntryStatus.CANCELLED,
+      personName: null,
+      payToOrderOf: null,
+      checkNumber: line.reference || line.journalEntry.reference,
+      checkDate: null,
+      bankReconciliationId: line.bankReconciliationId,
+      createdAt: line.journalEntry.createdAt,
+    }));
+
+    const combined = [...transactions, ...mappedJournalLines];
+    combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return combined;
   }
 
   async getAccountStatement(
@@ -82,8 +114,6 @@ export class BankTransactionService {
         .getMany();
         
       initialBalance = prevTransactions.reduce((acc, tx) => {
-        // Asumimos que los egresos restan y los ingresos suman
-        // Si tienes tx.transactionType === 'Egreso'
         const amount = Number(tx.amount) || 0;
         if (tx.transactionType === 'Egreso' || tx.type === 'Egreso') {
           return acc - amount;
@@ -91,6 +121,22 @@ export class BankTransactionService {
           return acc + amount;
         }
       }, 0);
+
+      const prevJournalLines = await this.journalEntryLineRepository
+        .createQueryBuilder('line')
+        .leftJoinAndSelect('line.journalEntry', 'je')
+        .where('line.accountId = :bankAccountId', { bankAccountId })
+        .andWhere('je.date < :startDate', { startDate: new Date(startDate) })
+        .getMany();
+
+      const journalBalance = prevJournalLines.reduce((acc, line) => {
+        // Debit = Ingreso (increase balance), Credit = Egreso (decrease balance)
+        const debit = Number(line.debit) || 0;
+        const credit = Number(line.credit) || 0;
+        return acc + debit - credit;
+      }, 0);
+
+      initialBalance += journalBalance;
     }
 
     const queryBuilder = this.bankTransactionRepository
@@ -114,13 +160,53 @@ export class BankTransactionService {
       .addOrderBy('transaction.createdAt', 'ASC')
       .getMany();
 
+    const journalQueryBuilder = this.journalEntryLineRepository
+      .createQueryBuilder('line')
+      .leftJoinAndSelect('line.journalEntry', 'je')
+      .where('line.accountId = :bankAccountId', { bankAccountId });
+
+    if (startDate) {
+      journalQueryBuilder.andWhere('je.date >= :startDate', {
+        startDate: new Date(startDate),
+      });
+    }
+
+    if (endDate) {
+      journalQueryBuilder.andWhere('je.date <= :endDate', {
+        endDate: new Date(endDate),
+      });
+    }
+
+    const journalLines = await journalQueryBuilder.getMany();
+
+    const mappedJournalLines = journalLines.map(line => ({
+      id: line.id,
+      bankAccountId: line.accountId,
+      date: line.journalEntry.date,
+      description: line.description || line.journalEntry.description || 'Asiento Contable',
+      amount: line.debit > 0 ? line.debit : line.credit,
+      type: line.debit > 0 ? 'Ingreso' : 'Egreso',
+      transactionType: 'Asiento Contable',
+      paymentMethod: 'Caja/Banco',
+      isAnnulled: line.journalEntry.status === JournalEntryStatus.CANCELLED,
+      personName: null,
+      payToOrderOf: null,
+      checkNumber: line.reference || line.journalEntry.reference,
+      checkDate: null,
+      bankReconciliationId: line.bankReconciliationId,
+      createdAt: line.journalEntry.createdAt,
+    }));
+
+    const combined = [...transactions, ...mappedJournalLines];
+    combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     return {
       bankAccountId,
       startDate,
       endDate,
       initialBalance,
-      transactions,
-      count: transactions.length,
+      transactions: combined,
+      count: combined.length,
     };
   }
 
