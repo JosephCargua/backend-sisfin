@@ -30,6 +30,8 @@ import { Retention } from '../modules/tax/entities/retention.entity';
 import { ATS } from '../modules/tax/entities/ats.entity';
 import { FinancialDocument } from '../modules/documents/entities/financial-document.entity';
 import { FinancialDocumentLine } from '../modules/documents/entities/financial-document-line.entity';
+import { DocumentPayment } from '../modules/documents/entities/document-payment.entity';
+import { DocumentCrossing } from '../modules/documents/entities/document-crossing.entity';
 
 export const typeOrmConfig = (
   configService: ConfigService,
@@ -77,6 +79,8 @@ export const typeOrmConfig = (
     ATS,
     FinancialDocument,
     FinancialDocumentLine,
+    DocumentPayment,
+    DocumentCrossing,
   ],
   synchronize: true, // Forzar sincronización para que Render cree las tablas
   logging: configService.get('NODE_ENV') === 'development',
