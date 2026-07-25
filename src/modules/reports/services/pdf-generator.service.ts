@@ -7,49 +7,60 @@ const PDFDocument = require('pdfkit');
 export class PdfGeneratorService {
   private async addHeader(doc: any): Promise<void> {
     try {
-      // Intentar múltiples rutas posibles para el logo
       const possiblePaths = [
         join(process.cwd(), '..', 'SISFIN', 'src', 'assets', 'logomovimiento.png'),
         join(process.cwd(), 'SISFIN', 'src', 'assets', 'logomovimiento.png'),
         join(__dirname, '..', '..', '..', '..', '..', 'SISFIN', 'src', 'assets', 'logomovimiento.png'),
+        'C:\\Users\\johac\\OneDrive\\Desktop\\Carpetas varias\\SISFIN\\SISFIN\\src\\assets\\logomovimiento.png' // Absolute fallback
       ];
 
-      let logoPath: string | null = null;
+      let logoBuffer: Buffer | null = null;
       for (const path of possiblePaths) {
         if (existsSync(path)) {
-          logoPath = path;
-          console.log('Logo found at:', logoPath);
-          break;
+          try {
+            logoBuffer = require('fs').readFileSync(path);
+            console.log('Logo loaded from:', path);
+            break;
+          } catch (e) {
+            console.warn('Failed to read logo from:', path, e);
+          }
         }
       }
 
       const logoY = 30;
       const logoHeight = 60;
+      const logoWidth = 60;
       
-      if (logoPath) {
-        doc.image(logoPath, 50, logoY, { width: 60, height: logoHeight });
-        console.log('Logo added to PDF');
-      } else {
-        console.warn('Logo not found in any of the expected paths:', possiblePaths);
+      let textStartX = 50;
+      let textWidth = 500;
+
+      if (logoBuffer) {
+        try {
+          doc.image(logoBuffer, 50, logoY, { width: logoWidth, height: logoHeight });
+          textStartX = 120; // Shift text to the right
+          textWidth = 430;  // Reduce width available for text
+        } catch (e) {
+          console.warn('Failed to draw logo on PDF:', e);
+        }
       }
       
-      // Texto principal más pequeño y ajustado
-      doc.fontSize(13)
+      // Texto principal
+      doc.fontSize(14)
         .font('Helvetica-Bold')
-        .text('MOVIMIENTO DE RETIROS PARROQUIALES JUAN XXIII', 120, logoY + 5, {
-          width: 400,
-          align: 'left',
-        });
-      
-      // Texto secundario centrado
-      doc.fontSize(11)
-        .font('Helvetica')
-        .text('VICARIATO APOSTÓLICO DE PUYO', 50, logoY + 30, {
-          width: 500,
+        .text('MOVIMIENTO DE RETIROS PARROQUIALES JUAN XXIII', textStartX, logoY + 15, {
+          width: textWidth,
           align: 'center',
         });
       
-      // Línea naranja más abajo, después del logo y textos
+      // Texto secundario
+      doc.fontSize(11)
+        .font('Helvetica')
+        .text('VICARIATO APOSTÓLICO DE PUYO', textStartX, doc.y + 5, {
+          width: textWidth,
+          align: 'center',
+        });
+      
+      // Línea naranja
       const lineY = logoY + logoHeight + 10;
       doc.moveTo(50, lineY)
         .lineTo(550, lineY)
@@ -57,12 +68,9 @@ export class PdfGeneratorService {
         .lineWidth(2)
         .stroke();
       
-      // Asegurar que el siguiente contenido esté después del encabezado
       doc.y = lineY + 15;
-      console.log('Header added successfully, current Y position:', doc.y);
     } catch (error) {
       console.error('Error adding header:', error);
-      // Continuar sin el encabezado si hay error
     }
   }
 

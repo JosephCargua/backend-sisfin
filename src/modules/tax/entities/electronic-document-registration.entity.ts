@@ -71,6 +71,9 @@ export class ElectronicDocumentRegistration {
   @Column({ type: 'decimal', precision: 18, scale: 2, nullable: true })
   total: number | null;
 
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  amountPaid: number;
+
   @Column({ type: 'int', default: 0 })
   itemCount: number;
 

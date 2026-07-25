@@ -95,6 +95,9 @@ export class FinancialDocument {
   @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
   total: number;
 
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  amountPaid: number;
+
   @OneToMany(() => FinancialDocumentLine, (line) => line.document, {
     cascade: true,
     eager: true,

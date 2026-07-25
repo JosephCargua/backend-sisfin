@@ -378,6 +378,10 @@ export class ElectronicDocumentRegistrationService {
       retentionAmount += taxAmount * 0.3;
     }
 
+    const amountPaid = Number(doc.amountPaid ?? 0);
+    const balance = total - amountPaid;
+    const isPaid = balance <= 0 && total > 0;
+
     return {
       id: doc.id,
       issueDate: doc.issueDate,
@@ -393,6 +397,9 @@ export class ElectronicDocumentRegistrationService {
       netAmount: Math.round(netAmount * 100) / 100,
       taxAmount: Math.round(taxAmount * 100) / 100,
       total: Math.round(total * 100) / 100,
+      amountPaid: Math.round(amountPaid * 100) / 100,
+      balance: Math.round(balance * 100) / 100,
+      isPaid: isPaid,
       retentionAmount: Math.round(retentionAmount * 100) / 100,
       statusLabel: this.getStatusLabel(doc),
       personTypeLabel: 'Proveedor',
