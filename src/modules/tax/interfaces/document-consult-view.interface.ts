@@ -16,6 +16,9 @@ export interface DocumentConsultView {
   netAmount: number;
   taxAmount: number;
   total: number;
+  amountPaid: number;
+  balance: number;
+  isPaid: boolean;
   retentionAmount: number;
   statusLabel: string;
   personTypeLabel: string;
