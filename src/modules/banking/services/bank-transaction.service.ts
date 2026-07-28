@@ -65,7 +65,7 @@ export class BankTransactionService {
 
   async findByBankAccount(bankAccountId: string): Promise<any[]> {
     const transactions = await this.bankTransactionRepository.find({
-      where: { bankAccountId },
+      where: { bankAccountId, isAnnulled: false },
       order: { date: 'DESC', createdAt: 'DESC' },
     });
 
@@ -74,7 +74,9 @@ export class BankTransactionService {
       relations: ['journalEntry'],
     });
 
-    const mappedJournalLines = journalLines.map(line => ({
+    const filteredJournalLines = journalLines.filter(line => line.journalEntry.status !== JournalEntryStatus.CANCELLED);
+
+    const mappedJournalLines = filteredJournalLines.map(line => ({
       id: line.id,
       bankAccountId: line.accountId,
       date: line.journalEntry.date,
@@ -83,7 +85,7 @@ export class BankTransactionService {
       type: line.debit > 0 ? 'Ingreso' : 'Egreso',
       transactionType: 'Asiento Contable',
       paymentMethod: 'Caja/Banco',
-      isAnnulled: line.journalEntry.status === JournalEntryStatus.CANCELLED,
+      isAnnulled: false,
       personName: null,
       payToOrderOf: null,
       checkNumber: line.reference || line.journalEntry.reference,
@@ -141,7 +143,8 @@ export class BankTransactionService {
 
     const queryBuilder = this.bankTransactionRepository
       .createQueryBuilder('transaction')
-      .where('transaction.bankAccountId = :bankAccountId', { bankAccountId });
+      .where('transaction.bankAccountId = :bankAccountId', { bankAccountId })
+      .andWhere('transaction.isAnnulled = :isAnnulled', { isAnnulled: false });
 
     if (startDate) {
       queryBuilder.andWhere('transaction.date >= :startDate', {
@@ -163,7 +166,8 @@ export class BankTransactionService {
     const journalQueryBuilder = this.journalEntryLineRepository
       .createQueryBuilder('line')
       .leftJoinAndSelect('line.journalEntry', 'je')
-      .where('line.accountId = :bankAccountId', { bankAccountId });
+      .where('line.accountId = :bankAccountId', { bankAccountId })
+      .andWhere('je.status != :status', { status: JournalEntryStatus.CANCELLED });
 
     if (startDate) {
       journalQueryBuilder.andWhere('je.date >= :startDate', {

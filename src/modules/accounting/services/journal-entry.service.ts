@@ -207,7 +207,14 @@ export class JournalEntryService {
 
     if (status) {
       queryBuilder.andWhere('entry.status = :status', { status });
+    } else {
+      queryBuilder.andWhere('entry.status != :cancelledStatus', { cancelledStatus: JournalEntryStatus.CANCELLED });
     }
+
+    // Excluir asientos automáticos de pagos para que no salgan en Libro Diario
+    queryBuilder.andWhere(
+      `entry.id NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
+    );
 
     if (searchTerm) {
       queryBuilder.andWhere(
@@ -266,7 +273,10 @@ export class JournalEntryService {
         .andWhere('entry.date <= :endDate', { endDate: endDateObj })
         .andWhere('entry.status = :status', {
           status: JournalEntryStatus.POSTED,
-        });
+        })
+        .andWhere(
+          `entry.id NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
+        );
 
       if (costCenterId) {
         queryBuilder.andWhere('line.costCenterId = :costCenterId', {

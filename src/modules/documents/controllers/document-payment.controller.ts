@@ -14,6 +14,12 @@ export class DocumentPaymentController {
     return this.paymentService.create(data);
   }
 
+  @Get()
+  @ApiOperation({ summary: 'Get all payments' })
+  findAll() {
+    return this.paymentService.findAll();
+  }
+
   @Get('document/:documentId')
   @ApiOperation({ summary: 'Get payments for a document' })
   getByDocument(@Param('documentId') documentId: string) {
