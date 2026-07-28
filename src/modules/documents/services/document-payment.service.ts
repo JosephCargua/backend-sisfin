@@ -120,7 +120,28 @@ export class DocumentPaymentService {
     }
   }
 
-  async getByDocument(documentId: string): Promise<DocumentPayment[]> {
-    return this.paymentRepository.find({ where: { documentId } });
+  async getByDocument(documentId: string): Promise<any[]> {
+    const payments = await this.paymentRepository.find({ where: { documentId } });
+    const enriched = await Promise.all(payments.map(async (p) => {
+      let paymentMethod = 'CASH';
+      let accountName = '';
+      if (p.transactionType === 'bank' && p.transactionId) {
+        const res = await this.dataSource.query(`SELECT bt."paymentMethod", ba.name as "accountName" FROM bank_transactions bt LEFT JOIN bank_accounts ba ON bt."bankAccountId" = ba.id WHERE bt.id = $1`, [p.transactionId]);
+        if (res && res.length > 0) {
+          const rawMethod = res[0].paymentMethod;
+          if (rawMethod === 'Cheque' || rawMethod === 'Cheque propio') paymentMethod = 'CHECK';
+          else if (rawMethod === 'Transferencia') paymentMethod = 'TRANSFER';
+          else if (rawMethod === 'Tarjeta') paymentMethod = 'CARD';
+          else paymentMethod = 'TRANSFER';
+          accountName = res[0].accountName || '';
+        }
+      }
+      return {
+        ...p,
+        mappedMethod: paymentMethod,
+        accountName: accountName
+      };
+    }));
+    return enriched;
   }
 }
