@@ -213,7 +213,7 @@ export class JournalEntryService {
 
     // Excluir asientos automáticos de pagos para que no salgan en Libro Diario
     queryBuilder.andWhere(
-      `entry.id NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
+      `CAST(entry.id AS VARCHAR) NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
     );
 
     if (searchTerm) {
@@ -275,7 +275,7 @@ export class JournalEntryService {
           status: JournalEntryStatus.POSTED,
         })
         .andWhere(
-          `entry.id NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
+          `CAST(entry.id AS VARCHAR) NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
         );
 
       if (costCenterId) {
