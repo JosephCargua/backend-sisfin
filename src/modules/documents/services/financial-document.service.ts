@@ -92,7 +92,8 @@ export class FinancialDocumentService {
 
     const savedDocument = await this.documentRepository.save(entity);
 
-    if (dto.payWithPettyCash && dto.pettyCashAccountId) {
+    // Create Journal Entry if we have account lines (even if not petty cash)
+    if (dto.lines.some(l => l.lineType === FinancialDocumentLineType.ACCOUNT)) {
       try {
         const jeLines = [];
         let totalDebit = 0;
@@ -111,61 +112,113 @@ export class FinancialDocumentService {
 
         // Debit IVA
         if (totals.iva15 > 0 || totals.iva5 > 0) {
-           // We would need the IVA account. For simplicity, we add it to the first expense account or a default one if provided.
-           // Since we don't have a default IVA account readily available, we will try to find if they mapped it, or just leave it. 
-           // Actually, we can just debit the total directly to a default account if no account lines, 
-           // but they should be selecting an account.
+           const totalIva = totals.iva15 + totals.iva5;
+           let ivaAccountId = null;
+           try {
+             // Find the IVA COMPRAS account
+             const res = await this.dataSource.query(`SELECT id FROM accounts WHERE name ILIKE '%IVA COMPRAS%' LIMIT 1`);
+             if (res && res.length > 0) ivaAccountId = res[0].id;
+           } catch(e) {
+             console.error('Error finding IVA account', e);
+           }
+           
+           if (ivaAccountId) {
+              jeLines.push({ accountId: ivaAccountId, debit: totalIva, credit: 0, description: `IVA Compras Doc: ${dto.documentNumber}` });
+              totalDebit += totalIva;
+           } else {
+              // Si no existe la cuenta, agregarlo a la primera línea de gasto
+              if (jeLines.length > 0) {
+                jeLines[0].debit += totalIva;
+                totalDebit += totalIva;
+              }
+           }
         }
 
-        // Credit Caja
+        // Credit Caja o Cuentas por Pagar
         const totalPaid = totals.total;
-        let realBankAccountId = dto.pettyCashAccountId;
-        try {
-          const res = await this.dataSource.query(`SELECT "accountId" FROM cash_accounts WHERE id = $1`, [dto.pettyCashAccountId]);
-          if (res && res.length > 0 && res[0].accountId) {
-             realBankAccountId = res[0].accountId;
+        let creditAccountId = dto.pettyCashAccountId;
+        
+        if (dto.payWithPettyCash && dto.pettyCashAccountId) {
+          try {
+            const res = await this.dataSource.query(`SELECT "accountId" FROM cash_accounts WHERE id = $1`, [dto.pettyCashAccountId]);
+            if (res && res.length > 0 && res[0].accountId) {
+               creditAccountId = res[0].accountId;
+            }
+          } catch (e) {
+            console.error('Error resolving cash account ID:', e);
           }
-        } catch (e) {
-          console.error('Error resolving cash account ID:', e);
+        } else {
+          // Find "Cuentas por Pagar" or similar if not paying with petty cash
+          try {
+             const res = await this.dataSource.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
+             if (res && res.length > 0) creditAccountId = res[0].id;
+          } catch (e) {
+             console.error('Error finding AP account', e);
+          }
         }
 
-        jeLines.push({ accountId: realBankAccountId, debit: 0, credit: totalPaid, description: `Pago ${dto.documentNumber}` });
-        totalCredit += totalPaid;
+        if (creditAccountId) {
+          jeLines.push({ accountId: creditAccountId, debit: 0, credit: totalPaid, description: `Provisión/Pago Doc: ${dto.documentNumber}` });
+          totalCredit += totalPaid;
+        }
 
         // Adjust differences
         if (totalDebit < totalCredit && jeLines.length > 1) {
            jeLines[0].debit += (totalCredit - totalDebit);
-        } else if (totalDebit > totalCredit) {
+        } else if (totalDebit > totalCredit && creditAccountId) {
            jeLines[jeLines.length - 1].credit += (totalDebit - totalCredit);
         }
 
-        // Create Journal Entry only if at least 2 lines and valid
-        if (jeLines.length >= 2 && jeLines[0].accountId && jeLines[1].accountId) {
+        // Create Journal Entry only if valid and we have lines
+        if (jeLines.length >= 2 && jeLines[0].accountId && jeLines[jeLines.length - 1].accountId) {
           await this.journalEntryService.create({
             date: new Date(dto.issueDate).toISOString(),
-            description: `Pago en efectivo/caja Doc: ${dto.documentNumber}`,
+            description: `Registro/Pago Compra Doc: ${dto.documentNumber}`,
             reference: dto.documentNumber,
             lines: jeLines
           });
         }
       } catch (err) {
-        console.error('Failed to create journal entry for petty cash:', err);
+        console.error('Failed to create journal entry for purchase:', err);
       }
     }
 
     return savedDocument;
   }
 
-  parseXmlFile(file: UploadedFilePayload) {
+  async parseXmlFile(file: UploadedFilePayload) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Archivo vacío o no válido');
     }
     const content = file.buffer.toString('utf-8');
     const parsed = this.xmlParser.parse(content);
 
+    let homologation: any = null;
+    let homologationLines: any[] = [];
+    try {
+      const docs = await this.dataSource.query(`SELECT id, "payableAccountId", "tipAccountId", "costCenterId" FROM electronic_document_registrations WHERE "accessKey" = $1 LIMIT 1`, [parsed.accessKey]);
+      if (docs && docs.length > 0) {
+        homologation = docs[0];
+        homologationLines = await this.dataSource.query(`SELECT "supplierCode", "mappedAccountId", "mappedProductId" FROM electronic_document_line_items WHERE "documentId" = $1`, [homologation.id]);
+      }
+    } catch (e) {
+      console.error('Error fetching homologation data', e);
+    }
+
     const serviceLines = parsed.lineItems.map((item, index) => {
       const ivaRate = this.parseIvaRate(item.ivaLabel);
       const subtotal = item.quantity * item.unitPrice;
+
+      let mappedAccountId = null;
+      let mappedProductId = null;
+      if (homologationLines && homologationLines.length > 0) {
+        const lineMatch = homologationLines.find(l => l.supplierCode === item.supplierCode);
+        if (lineMatch) {
+          mappedAccountId = lineMatch.mappedAccountId;
+          mappedProductId = lineMatch.mappedProductId;
+        }
+      }
+
       return {
         lineType: FinancialDocumentLineType.SERVICE,
         sortOrder: index,
@@ -181,6 +234,8 @@ export class FinancialDocumentService {
           discount: 0,
           extraDiscount: 0,
           subtotal,
+          mappedAccountId: mappedAccountId || homologation?.tipAccountId || null,
+          mappedProductId,
         },
       };
     });
@@ -192,6 +247,7 @@ export class FinancialDocumentService {
       personName: parsed.supplierName,
       personIdentification: parsed.supplierIdentification,
       documentCategory: 'INVOICE',
+      payableAccountId: homologation?.payableAccountId || null,
       lines: serviceLines,
       totals: {
         subtotal15: 0,
