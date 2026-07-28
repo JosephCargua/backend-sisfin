@@ -97,7 +97,19 @@ export class BankTransactionService {
     const combined = [...transactions, ...mappedJournalLines];
     combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    return combined;
+    const uniqueCombined = [];
+    const seen = new Set();
+    for (const item of combined) {
+      const desc = (item.description || item.transactionType || '').trim().toLowerCase();
+      const amt = Number(item.amount).toFixed(2);
+      const key = `${desc}-${amt}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueCombined.push(item);
+      }
+    }
+
+    return uniqueCombined;
   }
 
   async getAccountStatement(
@@ -204,13 +216,25 @@ export class BankTransactionService {
     const combined = [...transactions, ...mappedJournalLines];
     combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    const uniqueCombined = [];
+    const seen = new Set();
+    for (const item of combined) {
+      const desc = (item.description || item.transactionType || '').trim().toLowerCase();
+      const amt = Number(item.amount).toFixed(2);
+      const key = `${desc}-${amt}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueCombined.push(item);
+      }
+    }
+
     return {
       bankAccountId,
       startDate,
       endDate,
       initialBalance,
-      transactions: combined,
-      count: combined.length,
+      transactions: uniqueCombined,
+      count: uniqueCombined.length,
     };
   }
 

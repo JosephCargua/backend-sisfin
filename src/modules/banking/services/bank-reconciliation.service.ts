@@ -145,6 +145,18 @@ export class BankReconciliationService {
     const combined = [...transactions, ...mappedJournalLines];
     combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    const uniqueCombined = [];
+    const seen = new Set();
+    for (const item of combined) {
+      const desc = (item.description || item.transactionType || '').trim().toLowerCase();
+      const amt = Number(item.amount).toFixed(2);
+      const key = `${desc}-${amt}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueCombined.push(item);
+      }
+    }
+
     const data = {
       reconciliationDate: recon.reconciliationDate,
       accountName: bankAccount ? bankAccount.bankName : 'N/A',
@@ -153,7 +165,7 @@ export class BankReconciliationService {
       accountingBalance: recon.accountingBalance,
       difference: recon.difference,
       status: recon.status,
-      transactions: combined,
+      transactions: uniqueCombined,
     };
 
     return this.pdfGeneratorService.generateBankReconciliation(data);
