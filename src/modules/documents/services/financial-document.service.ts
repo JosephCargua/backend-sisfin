@@ -219,15 +219,22 @@ export class FinancialDocumentService {
         }
       }
 
+      const lineType = mappedAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
+      
       return {
-        lineType: FinancialDocumentLineType.SERVICE,
+        lineType,
         sortOrder: index,
         data: {
           quantity: item.quantity,
-          productCode: item.supplierCode,
-          productName: item.supplierDescription,
+          productId: lineType === FinancialDocumentLineType.SERVICE ? mappedProductId : undefined,
+          productCode: lineType === FinancialDocumentLineType.SERVICE ? (mappedProductId ? item.supplierCode : undefined) : undefined,
+          productName: lineType === FinancialDocumentLineType.SERVICE ? (mappedProductId ? item.supplierDescription : undefined) : undefined,
+          accountId: lineType === FinancialDocumentLineType.ACCOUNT ? mappedAccountId : undefined,
+          accountCode: '',
+          accountName: '',
           unit: 'UND',
           unitPrice: item.unitPrice,
+          unitValue: item.unitPrice, // For account lines
           ivaRate,
           retIr: 0,
           retIva: 0,
