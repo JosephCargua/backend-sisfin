@@ -216,8 +216,7 @@ export class JournalEntryService {
       `CAST(entry.id AS VARCHAR) NOT IN (SELECT "transactionId" FROM document_payments WHERE "transactionType" = 'journal' AND "transactionId" IS NOT NULL)`
     );
 
-    // Excluir asientos automáticos de facturas (Procesamiento de factura)
-    queryBuilder.andWhere("entry.description NOT ILIKE 'Procesamiento de factura%'");
+    // Excluir asientos automáticos de facturas (Procesamiento de factura) - REMOVED so they appear in Libro Diario
 
     if (searchTerm) {
       queryBuilder.andWhere(
