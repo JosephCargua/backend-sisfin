@@ -15,6 +15,9 @@ export class BankTransactionDetail {
   @Column({ type: 'uuid' })
   bankTransactionId: string;
 
+  @Column({ type: 'varchar', length: 50, default: 'DOCUMENT' })
+  sourceType: string; // 'DOCUMENT', 'ANTICIPO', 'ACCOUNT'
+
   @Column({ type: 'varchar', length: 150 })
   accountName: string;
 
