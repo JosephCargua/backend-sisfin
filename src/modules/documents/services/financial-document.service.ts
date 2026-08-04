@@ -219,7 +219,8 @@ export class FinancialDocumentService {
         }
       }
 
-      const lineType = mappedAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
+      const finalAccountId = mappedAccountId || (homologation?.tipAccountId) || null;
+      const lineType = finalAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
       
       return {
         lineType,
@@ -229,7 +230,7 @@ export class FinancialDocumentService {
           productId: lineType === FinancialDocumentLineType.SERVICE ? mappedProductId : undefined,
           productCode: lineType === FinancialDocumentLineType.SERVICE ? (mappedProductId ? item.supplierCode : undefined) : undefined,
           productName: lineType === FinancialDocumentLineType.SERVICE ? (mappedProductId ? item.supplierDescription : undefined) : undefined,
-          accountId: lineType === FinancialDocumentLineType.ACCOUNT ? mappedAccountId : undefined,
+          accountId: lineType === FinancialDocumentLineType.ACCOUNT ? finalAccountId : undefined,
           accountCode: '',
           accountName: '',
           unit: 'UND',
@@ -241,7 +242,7 @@ export class FinancialDocumentService {
           discount: 0,
           extraDiscount: 0,
           subtotal,
-          mappedAccountId: mappedAccountId || homologation?.tipAccountId || null,
+          mappedAccountId: finalAccountId,
           mappedProductId,
         },
       };

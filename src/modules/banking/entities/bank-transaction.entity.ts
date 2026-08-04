@@ -37,6 +37,9 @@ export class BankTransaction {
   @Column({ type: 'boolean', default: false })
   isAnnulled: boolean;
 
+  @Column({ type: 'uuid', nullable: true })
+  personaId: string;
+
   @Column({ type: 'varchar', length: 150, nullable: true })
   personName: string;
 

@@ -11,6 +11,7 @@ import { TaxModule } from './modules/tax/tax.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { PersonasModule } from './modules/personas/personas.module';
 import { typeOrmConfig } from './config/typeorm.config';
 
 @Module({
@@ -34,6 +35,7 @@ import { typeOrmConfig } from './config/typeorm.config';
         ReportsModule,
         DashboardModule,
         DocumentsModule,
+        PersonasModule,
       ],
     })
     export class AppModule {}

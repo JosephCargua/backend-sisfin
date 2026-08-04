@@ -20,6 +20,8 @@ import { BankTransactionService } from './services/bank-transaction.service';
 
 import { BankReconciliationController } from './controllers/bank-reconciliation.controller';
 import { BankReconciliationService } from './services/bank-reconciliation.service';
+import { CobrosPagosController } from './controllers/cobros-pagos.controller';
+import { CobrosPagosService } from './services/cobros-pagos.service';
 
 @Module({
   imports: [
@@ -42,18 +44,21 @@ import { BankReconciliationService } from './services/bank-reconciliation.servic
     CashAccountController,
     BankTransactionController,
     BankReconciliationController,
+    CobrosPagosController,
   ],
   providers: [
     BankAccountService,
     CashAccountService,
     BankTransactionService,
     BankReconciliationService,
+    CobrosPagosService,
   ],
   exports: [
     BankAccountService,
     CashAccountService,
     BankTransactionService,
     BankReconciliationService,
+    CobrosPagosService,
   ],
 })
 export class BankingModule {}
