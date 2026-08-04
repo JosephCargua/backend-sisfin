@@ -117,7 +117,7 @@ export class Persona {
   @Column({ name: 'acc_cuenta_por_pagar_id', type: 'uuid', nullable: true })
   accCuentaPorPagarId: string;
 
-  @Column({ name: 'banco_id', type: 'uuid', nullable: true })
+  @Column({ name: 'banco_id', nullable: true })
   bancoId: string;
 
   @Column({ name: 'tipo_cuenta_bancaria', nullable: true })
