@@ -83,6 +83,7 @@ export const typeOrmConfig = (
     DocumentCrossing,
   ],
   synchronize: true, // Forzar sincronización para que Render cree las tablas
+  autoLoadEntities: true,
   logging: configService.get('NODE_ENV') === 'development',
   migrations: ['dist/migrations/*.js'],
   migrationsRun: false,
