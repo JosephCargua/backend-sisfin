@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { ElectronicDocumentRegistration } from '../entities/electronic-document-registration.entity';
 import { ElectronicDocumentLineItem } from '../entities/electronic-document-line-item.entity';
 import { XmlInvoiceParserService } from './xml-invoice-parser.service';
@@ -35,6 +35,7 @@ export class ElectronicDocumentRegistrationService {
     private readonly xmlParser: XmlInvoiceParserService,
     private readonly journalEntryService: JournalEntryService,
     private readonly personasService: PersonasService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async search(filters: SearchDocumentsDto): Promise<DocumentConsultView[]> {
@@ -282,13 +283,16 @@ export class ElectronicDocumentRegistrationService {
     }
 
     // Auto-crear persona si no existe
+    let personId: string | null = null;
     if (doc.supplierIdentification) {
       const existingPersonas = await this.personasService.findAll({ filtro: doc.supplierIdentification });
       const exactMatch = existingPersonas.find(p => p.ruc === doc.supplierIdentification || p.cedula === doc.supplierIdentification);
       
-      if (!exactMatch) {
+      if (exactMatch) {
+        personId = exactMatch.id;
+      } else {
         try {
-          await this.personasService.create({
+          const newPerson = await this.personasService.create({
             nombre: doc.supplierName || 'Persona Sin Nombre',
             ruc: doc.supplierIdentification.length > 10 ? doc.supplierIdentification : undefined,
             cedula: doc.supplierIdentification.length <= 10 ? doc.supplierIdentification : undefined,
@@ -296,16 +300,148 @@ export class ElectronicDocumentRegistrationService {
             estado: 'Activo',
             esProveedor: true
           });
+          personId = newPerson.id;
         } catch (e) {
-          console.error("Error creando persona automáticamente:", e);
+          console.error('Error creando persona automáticamente:', e);
         }
       }
     }
 
-    // El asiento contable real se crea al momento de Registrar y Guardar la Factura de Gasto,
-    // no aquí en la bandeja de entrada (homologación).
-    // Solo marcamos el documento como procesado para que la cuenta homologada
-    // quede guardada y el frontend pueda recuperarla al subir el XML real.
+    // Obtener las líneas homologadas del documento
+    const lineItems = await this.getLineItems(id);
+    const total = Number(doc.total ?? 0);
+
+    // Calcular subtotal e IVA a partir del total (asumiendo 15% IVA)
+    const subtotal15 = total > 0 ? this.round2(total / 1.15) : 0;
+    const iva15 = this.round2(total - subtotal15);
+
+    // Construir las líneas del documento financiero
+    const financialLines: any[] = [];
+    let sortOrder = 0;
+
+    if (doc.useRecurringAccount && doc.recurringAccountId) {
+      // Usar cuenta recurrente única con el total
+      financialLines.push({
+        lineType: 'ACCOUNT',
+        sortOrder: sortOrder++,
+        data: JSON.stringify({
+          quantity: 1,
+          accountId: doc.recurringAccountId,
+          accountCode: '',
+          accountName: '',
+          unitValue: subtotal15,
+          ivaRate: 15,
+          icePercent: 0,
+          retIr: '',
+          retIva: '',
+          discountPercent: 0,
+          discount: 0,
+          subtotal: subtotal15,
+        }),
+      });
+    } else if (lineItems.length > 0 && lineItems.some(l => l.mappedAccountId)) {
+      // Usar líneas homologadas individualmente
+      for (const item of lineItems) {
+        if (item.mappedAccountId) {
+          const lineSubtotal = this.round2(Number(item.unitPrice) * Number(item.quantity));
+          financialLines.push({
+            lineType: 'ACCOUNT',
+            sortOrder: sortOrder++,
+            data: JSON.stringify({
+              quantity: Number(item.quantity),
+              accountId: item.mappedAccountId,
+              accountCode: '',
+              accountName: '',
+              unitValue: Number(item.unitPrice),
+              ivaRate: 15,
+              icePercent: 0,
+              retIr: '',
+              retIva: '',
+              discountPercent: 0,
+              discount: 0,
+              subtotal: lineSubtotal,
+            }),
+          });
+        }
+      }
+    } else if (doc.payableAccountId) {
+      // Usar la cuenta por pagar como única línea de gasto con el subtotal
+      financialLines.push({
+        lineType: 'ACCOUNT',
+        sortOrder: sortOrder++,
+        data: JSON.stringify({
+          quantity: 1,
+          accountId: doc.payableAccountId,
+          accountCode: '',
+          accountName: '',
+          unitValue: subtotal15,
+          ivaRate: 15,
+          icePercent: 0,
+          retIr: '',
+          retIva: '',
+          discountPercent: 0,
+          discount: 0,
+          subtotal: subtotal15,
+        }),
+      });
+    }
+
+    // Verificar si ya existe un documento financiero con este número
+    const existing = await this.dataSource.query(
+      `SELECT id FROM financial_documents WHERE "documentNumber" = $1 AND "entryType" = 'PURCHASE_EXPENSE' LIMIT 1`,
+      [doc.documentNumber]
+    );
+
+    if (existing.length === 0 && financialLines.length > 0) {
+      try {
+        // Insertar el documento financiero
+        const insertDoc = await this.dataSource.query(
+          `INSERT INTO financial_documents 
+           ("issueDate", "personType", "documentCategory", "entryType", "documentNumber", "authorization",
+            "personId", "personName", "personIdentification",
+            "subtotal15", "subtotal5", "subtotal0", "discount", "iva15", "iva5", "ice", "total",
+            "dueDays", "description", "payWithPettyCash", "createdAt", "updatedAt")
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$21)
+           RETURNING id`,
+          [
+            doc.issueDate,
+            'SUPPLIER',
+            'INVOICE',
+            'PURCHASE_EXPENSE',
+            doc.documentNumber,
+            doc.accessKey || null,
+            personId,
+            doc.supplierName,
+            doc.supplierIdentification,
+            subtotal15,
+            0,
+            0,
+            0,
+            iva15,
+            0,
+            0,
+            total,
+            0,
+            `Factura ${doc.documentNumber} - ${doc.supplierName}`,
+            false,
+            new Date(),
+          ]
+        );
+
+        const newDocId = insertDoc[0]?.id;
+        if (newDocId) {
+          for (const line of financialLines) {
+            await this.dataSource.query(
+              `INSERT INTO financial_document_lines ("documentId", "lineType", "sortOrder", "data", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $5)`,
+              [newDocId, line.lineType, line.sortOrder, line.data, new Date()]
+            );
+          }
+        }
+      } catch (e) {
+        console.error('Error al crear el documento financiero automáticamente:', e);
+      }
+    }
 
     doc.processingStatus = DocumentProcessingStatus.PROCESSED;
     return this.repository.save(doc);
@@ -490,5 +626,9 @@ export class ElectronicDocumentRegistrationService {
     const saved = await this.repository.save(entity);
     await this.saveLineItems(saved.id, []);
     return saved;
+  }
+
+  private round2(value: number): number {
+    return Math.round(value * 100) / 100;
   }
 }
