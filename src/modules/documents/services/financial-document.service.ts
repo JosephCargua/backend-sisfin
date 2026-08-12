@@ -222,9 +222,6 @@ export class FinancialDocumentService {
       const finalAccountId = mappedAccountId || (homologation?.payableAccountId) || null;
       const lineType = finalAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
       
-      console.log('[parseXmlFile] homologation found:', JSON.stringify(homologation));
-      console.log('[parseXmlFile] homologationLines:', JSON.stringify(homologationLines));
-      console.log('[parseXmlFile] serviceLines result:', JSON.stringify(serviceLines));
       return {
         lineType,
         sortOrder: index,
@@ -250,6 +247,11 @@ export class FinancialDocumentService {
         },
       };
     });
+
+    console.log('[parseXmlFile] accessKey from XML:', parsed.accessKey);
+    console.log('[parseXmlFile] homologation found:', JSON.stringify(homologation));
+    console.log('[parseXmlFile] homologationLines count:', homologationLines.length);
+    console.log('[parseXmlFile] lines built:', JSON.stringify(serviceLines.map(l => ({ lineType: l.lineType, accountId: l.data.accountId, ivaRate: l.data.ivaRate, unitPrice: l.data.unitPrice }))));
 
     return {
       issueDate: parsed.issueDate.toISOString().slice(0, 10),
