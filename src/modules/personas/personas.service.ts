@@ -18,25 +18,29 @@ export class PersonasService {
   }
 
   async findAll(query: any): Promise<Persona[]> {
-    const where: any = {};
-
-    if (query.filtro) {
-      where.nombre = Like(`%${query.filtro}%`);
-      // Nota: TypeORM Like se puede combinar con OR, pero para simplificar
-      // podemos dejar la lógica compleja de OR aquí si es necesario
-    }
+    let whereConditions: any[] = [];
+    const baseCondition: any = {};
 
     if (query.estado && query.estado !== 'Todos') {
-      where.estado = query.estado;
+      baseCondition.estado = query.estado;
     }
 
     if (query.tipo && query.tipo !== 'Todos') {
-      where.tipo = query.tipo;
+      baseCondition.tipo = query.tipo;
     }
 
-    // Retorna todos si no hay más paginación
+    if (query.filtro) {
+      whereConditions = [
+        { ...baseCondition, nombre: Like(`%${query.filtro}%`) },
+        { ...baseCondition, ruc: Like(`%${query.filtro}%`) },
+        { ...baseCondition, cedula: Like(`%${query.filtro}%`) }
+      ];
+    } else {
+      whereConditions = [baseCondition];
+    }
+
     return await this.personaRepository.find({
-      where,
+      where: whereConditions,
       order: { nombre: 'ASC' },
       relations: ['autorizacionesSri'],
     });
