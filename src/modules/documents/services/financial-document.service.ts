@@ -199,7 +199,7 @@ export class FinancialDocumentService {
       const docs = await this.dataSource.query(`SELECT id, "payableAccountId", "tipAccountId", "costCenterId" FROM electronic_document_registrations WHERE "accessKey" = $1 LIMIT 1`, [parsed.accessKey]);
       if (docs && docs.length > 0) {
         homologation = docs[0];
-        homologationLines = await this.dataSource.query(`SELECT "supplierCode", "mappedAccountId", "mappedProductId" FROM electronic_document_line_items WHERE "documentId" = $1`, [homologation.id]);
+        homologationLines = await this.dataSource.query(`SELECT "supplierCode", "mappedAccountId", "mappedProductId" FROM electronic_document_line_items WHERE "documentRegistrationId" = $1`, [homologation.id]);
       }
     } catch (e) {
       console.error('Error fetching homologation data', e);
