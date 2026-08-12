@@ -33,7 +33,7 @@ export class AccountService {
 
         if (parent.isControlAccount === false) {
           throw new BadRequestException(
-            'Cannot create child account under a movement account',
+            'No se puede crear una cuenta hija bajo una cuenta de movimiento. La cuenta padre debe ser una Cuenta de Control.',
           );
         }
       }
