@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { BankReconciliation } from '../entities/bank-reconciliation.entity';
@@ -100,7 +100,7 @@ export class BankReconciliationService {
     });
 
     if (recon.status === 'Concluida' && Math.abs(recon.difference) > 0.001) {
-      throw new require('@nestjs/common').BadRequestException('No se puede cerrar la conciliación si la diferencia no es cero.');
+      throw new BadRequestException('No se puede cerrar la conciliación si la diferencia no es cero.');
     }
     
     return this.bankReconciliationRepository.save(recon);
