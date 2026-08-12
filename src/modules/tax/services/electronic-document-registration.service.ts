@@ -302,73 +302,10 @@ export class ElectronicDocumentRegistrationService {
       }
     }
 
-    // Crear asiento contable (Journal Entry)
-    const total = Number(doc.total ?? 0);
-    const netAmount = total > 0 ? total / 1.15 : 0;
-    const taxAmount = total > 0 ? total - netAmount : 0;
-    
-    let retentionAmount = 0;
-    if (doc.generateRetention && doc.retentionIrCode) {
-      retentionAmount = netAmount * 0.01;
-    }
-    if (doc.generateRetention && doc.retentionIvaCode) {
-      retentionAmount += taxAmount * 0.3;
-    }
-
-    const lines = [];
-    let totalDebits = 0;
-
-    if (doc.useRecurringAccount && doc.recurringAccountId) {
-      lines.push({
-        accountId: doc.recurringAccountId,
-        debit: total,
-        credit: 0,
-        description: `Gasto Factura ${doc.documentNumber} - ${doc.supplierName}`
-      });
-      totalDebits += total;
-    } else {
-      const items = await this.getLineItems(id);
-      for (const item of items) {
-        if (item.mappedAccountId) {
-           const lineTotal = Number(item.unitPrice) * Number(item.quantity);
-           lines.push({
-             accountId: item.mappedAccountId,
-             debit: lineTotal,
-             credit: 0,
-             description: item.supplierDescription
-           });
-           totalDebits += lineTotal;
-        }
-      }
-      
-      // Ajuste por IVA u otros para cuadrar el total de la factura
-      if (totalDebits < total && lines.length > 0) {
-         lines[0].debit += (total - totalDebits);
-         totalDebits = total;
-      }
-    }
-    
-    // Cuenta por pagar (Haber)
-    if (doc.payableAccountId) {
-      lines.push({
-        accountId: doc.payableAccountId,
-        debit: 0,
-        credit: total,
-        description: `Factura ${doc.documentNumber} - ${doc.supplierName}`
-      });
-    }
-
-    try {
-      await this.journalEntryService.create({
-        date: doc.issueDate ? new Date(doc.issueDate).toISOString() : new Date().toISOString(),
-        reference: doc.documentNumber,
-        description: `Procesamiento de factura ${doc.documentNumber}`,
-        lines: lines
-      });
-    } catch (e) {
-      // Ignorar error si no cuadra perfecto por cuentas no mapeadas (simplificación)
-      console.error("Error creating journal entry: ", e);
-    }
+    // El asiento contable real se crea al momento de Registrar y Guardar la Factura de Gasto,
+    // no aquí en la bandeja de entrada (homologación).
+    // Solo marcamos el documento como procesado para que la cuenta homologada
+    // quede guardada y el frontend pueda recuperarla al subir el XML real.
 
     doc.processingStatus = DocumentProcessingStatus.PROCESSED;
     return this.repository.save(doc);
