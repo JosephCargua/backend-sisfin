@@ -432,9 +432,9 @@ export class ElectronicDocumentRegistrationService {
         if (newDocId) {
           for (const line of financialLines) {
             await this.dataSource.query(
-              `INSERT INTO financial_document_lines ("documentId", "lineType", "sortOrder", "data", "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, $5, $5)`,
-              [newDocId, line.lineType, line.sortOrder, line.data, new Date()]
+              `INSERT INTO financial_document_lines ("documentId", "lineType", "sortOrder", "data")
+               VALUES ($1, $2, $3, $4)`,
+              [newDocId, line.lineType, line.sortOrder, line.data]
             );
           }
         }
