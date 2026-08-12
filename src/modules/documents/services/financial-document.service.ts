@@ -222,6 +222,9 @@ export class FinancialDocumentService {
       const finalAccountId = mappedAccountId || (homologation?.payableAccountId) || null;
       const lineType = finalAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
       
+      console.log('[parseXmlFile] homologation found:', JSON.stringify(homologation));
+      console.log('[parseXmlFile] homologationLines:', JSON.stringify(homologationLines));
+      console.log('[parseXmlFile] serviceLines result:', JSON.stringify(serviceLines));
       return {
         lineType,
         sortOrder: index,
