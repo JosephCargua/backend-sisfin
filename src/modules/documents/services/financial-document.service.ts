@@ -219,7 +219,7 @@ export class FinancialDocumentService {
         }
       }
 
-      const finalAccountId = mappedAccountId || (homologation?.tipAccountId) || null;
+      const finalAccountId = mappedAccountId || (homologation?.payableAccountId) || null;
       const lineType = finalAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
       
       return {
