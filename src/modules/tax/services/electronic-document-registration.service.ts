@@ -481,6 +481,7 @@ export class ElectronicDocumentRegistrationService {
         ivaLabel: item.ivaLabel,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        isHomologated: item.supplierCode === 'TXT', // Auto-homologar consolidado TXT
       }),
     );
 

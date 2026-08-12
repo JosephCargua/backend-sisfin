@@ -211,16 +211,13 @@ export class FinancialDocumentService {
 
       let mappedAccountId = null;
       let mappedProductId = null;
-        if (homologationLines && homologationLines.length > 0) {
-          let lineMatch = homologationLines.find(l => l.supplierCode === item.supplierCode);
-          if (!lineMatch) {
-            lineMatch = homologationLines.find(l => l.supplierCode === 'TXT');
-          }
-          if (lineMatch) {
-            mappedAccountId = lineMatch.mappedAccountId;
-            mappedProductId = lineMatch.mappedProductId;
-          }
+      if (homologationLines && homologationLines.length > 0) {
+        const lineMatch = homologationLines.find(l => l.supplierCode === item.supplierCode);
+        if (lineMatch) {
+          mappedAccountId = lineMatch.mappedAccountId;
+          mappedProductId = lineMatch.mappedProductId;
         }
+      }
 
       const finalAccountId = mappedAccountId || (homologation?.payableAccountId) || null;
       const lineType = finalAccountId ? FinancialDocumentLineType.ACCOUNT : FinancialDocumentLineType.SERVICE;
