@@ -29,6 +29,18 @@ export class BankReconciliation {
   accountingBalance: number;
 
   @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  initialBalance: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalIncomes: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalExpenses: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  reconciledBalance: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
   difference: number;
 
   @CreateDateColumn()

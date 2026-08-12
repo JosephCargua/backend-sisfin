@@ -12,24 +12,32 @@ export class ExcelGeneratorService {
       { header: 'Saldo', key: 'balance', width: 20 },
     ];
 
-    worksheet.getRow(1).font = { bold: true, size: 14 };
+    worksheet.getRow(1).font = { name: 'Arial', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
     worksheet.mergeCells('A1:B1');
     worksheet.getCell('A1').value = 'BALANCE GENERAL';
+    worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
     worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 25;
+    worksheet.getRow(1).height = 30;
 
     worksheet.mergeCells('A2:B2');
     worksheet.getCell('A2').value = `Fecha: ${new Date(data.date).toLocaleDateString('es-EC')}`;
-    worksheet.getCell('A2').alignment = { horizontal: 'right' };
+    worksheet.getCell('A2').font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF64748B' } };
+    worksheet.getCell('A2').alignment = { horizontal: 'center' };
+    worksheet.getRow(2).height = 20;
 
     let currentRow = 4;
 
     worksheet.getCell(`A${currentRow}`).value = 'ACTIVOS';
-    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' },
+      fgColor: { argb: 'FF0EA5E9' },
+    };
+    worksheet.getCell(`B${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0EA5E9' },
     };
     currentRow++;
 
@@ -51,11 +59,16 @@ export class ExcelGeneratorService {
     currentRow += 2;
 
     worksheet.getCell(`A${currentRow}`).value = 'PASIVOS';
-    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' },
+      fgColor: { argb: 'FF0EA5E9' },
+    };
+    worksheet.getCell(`B${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0EA5E9' },
     };
     currentRow++;
 
@@ -77,11 +90,16 @@ export class ExcelGeneratorService {
     currentRow += 2;
 
     worksheet.getCell(`A${currentRow}`).value = 'PATRIMONIO';
-    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' },
+      fgColor: { argb: 'FF0EA5E9' },
+    };
+    worksheet.getCell(`B${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0EA5E9' },
     };
     currentRow++;
 
@@ -122,11 +140,12 @@ export class ExcelGeneratorService {
         { header: 'Saldo', key: 'balance', width: 20 },
       ];
 
-      worksheet.getRow(1).font = { bold: true, size: 14 };
+      worksheet.getRow(1).font = { name: 'Arial', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
       worksheet.mergeCells('A1:B1');
       worksheet.getCell('A1').value = 'ESTADO DE RESULTADOS';
+      worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
       worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
-      worksheet.getRow(1).height = 25;
+      worksheet.getRow(1).height = 30;
 
       worksheet.mergeCells('A2:B2');
       const startDateStr = data.startDate 
@@ -136,16 +155,23 @@ export class ExcelGeneratorService {
         ? new Date(data.endDate).toLocaleDateString('es-EC') 
         : 'N/A';
       worksheet.getCell('A2').value = `Período: ${startDateStr} - ${endDateStr}`;
-      worksheet.getCell('A2').alignment = { horizontal: 'right' };
+      worksheet.getCell('A2').font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF64748B' } };
+      worksheet.getCell('A2').alignment = { horizontal: 'center' };
+      worksheet.getRow(2).height = 20;
 
     let currentRow = 4;
 
     worksheet.getCell(`A${currentRow}`).value = 'INGRESOS';
-    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' },
+      fgColor: { argb: 'FF0EA5E9' },
+    };
+    worksheet.getCell(`B${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0EA5E9' },
     };
     currentRow++;
 
@@ -166,39 +192,52 @@ export class ExcelGeneratorService {
     worksheet.getCell(`B${currentRow}`).font = { bold: true };
     currentRow += 2;
 
-    worksheet.getCell(`A${currentRow}`).value = 'GASTOS';
-    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    worksheet.getCell(`A${currentRow}`).value = 'EGRESOS';
+    worksheet.getCell(`A${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' },
+      fgColor: { argb: 'FF0EA5E9' },
+    };
+    worksheet.getCell(`B${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0EA5E9' },
     };
     currentRow++;
 
-    if (data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0) {
-      data.expenses.forEach((exp: any) => {
+    if (data.expenses && data.expenses.length > 0) {
+      data.expenses.forEach((expense: any) => {
         worksheet.addRow({
-          account: exp.accountName || exp.code || 'N/A',
-          balance: exp.balance || 0,
+          account: expense.accountName || expense.code,
+          balance: expense.balance || 0,
         });
         currentRow++;
       });
     }
 
-    worksheet.getCell(`A${currentRow}`).value = 'TOTAL GASTOS';
+    worksheet.getCell(`A${currentRow}`).value = 'TOTAL EGRESOS';
     worksheet.getCell(`A${currentRow}`).font = { bold: true };
     worksheet.getCell(`B${currentRow}`).value = data.totalExpenses || 0;
     worksheet.getCell(`B${currentRow}`).numFmt = '$#,##0.00';
     worksheet.getCell(`B${currentRow}`).font = { bold: true };
     currentRow += 2;
 
-    const netIncome = (data.totalIncome || 0) - (data.totalExpenses || 0);
-    worksheet.getCell(`A${currentRow}`).value = 'UTILIDAD NETA';
-    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
-    worksheet.getCell(`B${currentRow}`).value = netIncome;
+    worksheet.getCell(`A${currentRow}`).value = 'UTILIDAD (PÉRDIDA) DEL EJERCICIO';
+    worksheet.getCell(`A${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    worksheet.getCell(`A${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E293B' }, // Darker slate for net income
+    };
+    worksheet.getCell(`B${currentRow}`).value = data.netIncome || 0;
     worksheet.getCell(`B${currentRow}`).numFmt = '$#,##0.00';
-    worksheet.getCell(`B${currentRow}`).font = { bold: true, size: 12 };
-
+    worksheet.getCell(`B${currentRow}`).font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    worksheet.getCell(`B${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E293B' },
+    };   
       worksheet.getColumn(2).numFmt = '$#,##0.00';
       worksheet.getColumn(2).alignment = { horizontal: 'right' };
 

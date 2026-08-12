@@ -31,6 +31,10 @@ export class BankReconciliationService {
       status: createDto.status || 'Pendiente',
       statementBalance: createDto.statementBalance,
       accountingBalance: createDto.accountingBalance || 0,
+      initialBalance: createDto.initialBalance || 0,
+      totalIncomes: createDto.totalIncomes || 0,
+      totalExpenses: createDto.totalExpenses || 0,
+      reconciledBalance: createDto.reconciledBalance || 0,
       difference: createDto.difference || 0,
     });
 
@@ -94,6 +98,10 @@ export class BankReconciliationService {
       ...updateDto,
       reconciliationDate: updateDto.reconciliationDate ? new Date(updateDto.reconciliationDate) : recon.reconciliationDate
     });
+
+    if (recon.status === 'Concluida' && Math.abs(recon.difference) > 0.001) {
+      throw new require('@nestjs/common').BadRequestException('No se puede cerrar la conciliación si la diferencia no es cero.');
+    }
     
     return this.bankReconciliationRepository.save(recon);
   }

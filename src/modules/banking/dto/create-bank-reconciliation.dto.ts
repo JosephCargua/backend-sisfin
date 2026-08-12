@@ -31,6 +31,22 @@ export class CreateBankReconciliationDto {
 
   @IsNumber()
   @IsOptional()
+  initialBalance?: number;
+
+  @IsNumber()
+  @IsOptional()
+  totalIncomes?: number;
+
+  @IsNumber()
+  @IsOptional()
+  totalExpenses?: number;
+
+  @IsNumber()
+  @IsOptional()
+  reconciledBalance?: number;
+
+  @IsNumber()
+  @IsOptional()
   difference?: number;
 
   @IsArray()

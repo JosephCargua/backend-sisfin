@@ -552,9 +552,9 @@ export class PdfGeneratorService {
 
         await this.addHeader(doc);
         
-        doc.fontSize(20).font('Helvetica-Bold')
-          .text('Conciliación Bancaria', { align: 'center' });
-        doc.moveDown(2);
+        doc.fontSize(16).font('Helvetica-Bold')
+          .text('CONCILIACIÓN BANCARIA', { align: 'center' });
+        doc.moveDown(1.5);
 
         // Cabecera info
         const startX = 50;
@@ -571,31 +571,52 @@ export class PdfGeneratorService {
 
         currentY += 15;
         doc.font('Helvetica-Bold').text('Descripción:', startX, currentY);
-        doc.font('Helvetica').text(data.description || '', valX, currentY, { width: 350 });
+        doc.font('Helvetica').text(data.description || 'N/A', valX, currentY, { width: 350 });
         
-        const descHeight = doc.heightOfString(data.description || '', { width: 350 });
+        const descHeight = doc.heightOfString(data.description || 'N/A', { width: 350 });
         currentY += descHeight > 15 ? descHeight + 5 : 15;
 
-        doc.font('Helvetica-Bold').text('Saldo Estado de Cuenta:', startX, currentY);
-        doc.font('Helvetica').text(this.formatCurrency(data.statementBalance), valX, currentY);
-
-        currentY += 15;
         doc.font('Helvetica-Bold').text('Estado:', startX, currentY);
-        doc.font('Helvetica').text(data.status || 'Concluida', valX, currentY);
-
+        doc.font('Helvetica').text(data.status || 'Pendiente', valX, currentY);
+        
         doc.y = currentY + 30;
 
-        // Tabla de transacciones
-        doc.fontSize(12).font('Helvetica-Bold').text('Transacciones Afectadas:', { underline: true });
-        doc.moveDown(1);
-
-        const tableTop = doc.y;
-        const colWidths = [60, 240, 80, 80, 80];
-        const cols = [50, 110, 350, 430, 510];
+        // --- Cuadro de Resumen Principal ---
+        doc.fontSize(11).font('Helvetica-Bold').text('Resumen de Conciliación:', { underline: true });
+        doc.moveDown(0.5);
 
         const drawRowLine = (y: number) => {
-          doc.moveTo(50, y).lineTo(590, y).strokeColor('#000000').lineWidth(0.5).stroke();
+          doc.moveTo(50, y).lineTo(590, y).strokeColor('#e2e8f0').lineWidth(1).stroke();
         };
+
+        const drawSummaryLine = (label: string, amount: number, isBold: boolean = false) => {
+          const y = doc.y;
+          drawRowLine(y);
+          doc.y = y + 5;
+          if (isBold) doc.font('Helvetica-Bold');
+          else doc.font('Helvetica');
+          doc.text(label, 50, doc.y);
+          doc.text(this.formatCurrency(amount), 450, doc.y, { width: 140, align: 'right' });
+          doc.y += 12;
+        };
+
+        drawSummaryLine('Saldo Inicial:', Number(data.initialBalance) || 0);
+        drawSummaryLine('(+) Ingresos del Sistema:', Number(data.totalIncomes) || 0);
+        drawSummaryLine('(-) Egresos del Sistema:', Number(data.totalExpenses) || 0);
+        drawSummaryLine('(=) Saldo Contable Conciliado:', Number(data.reconciledBalance) || 0, true);
+        doc.moveDown(0.5);
+        drawSummaryLine('Saldo Estado de Cuenta:', Number(data.statementBalance) || 0, true);
+        drawSummaryLine('Diferencia:', Number(data.difference) || 0, true);
+        drawRowLine(doc.y);
+
+        doc.moveDown(2);
+
+        // --- Tabla de transacciones ---
+        doc.fontSize(11).font('Helvetica-Bold').text('Detalle de Movimientos Conciliados:', { underline: true });
+        doc.moveDown(0.5);
+
+        const colWidths = [60, 240, 100, 100];
+        const cols = [50, 110, 350, 450];
 
         // Header table
         drawRowLine(doc.y);
@@ -603,29 +624,17 @@ export class PdfGeneratorService {
         let rowY = doc.y + 5;
         doc.text('Fecha', cols[0], rowY, { width: colWidths[0] });
         doc.text('Detalle', cols[1], rowY, { width: colWidths[1] });
-        doc.text('Referencia', cols[2], rowY, { width: colWidths[2] });
-        doc.text('Tipo', cols[3], rowY, { width: colWidths[3] });
-        doc.text('Monto', cols[4], rowY, { width: colWidths[4], align: 'right' });
+        doc.text('Referencia / Tipo', cols[2], rowY, { width: colWidths[2] });
+        doc.text('Monto', cols[3], rowY, { width: colWidths[3], align: 'right' });
         doc.y = rowY + 15;
         drawRowLine(doc.y);
 
         doc.font('Helvetica').fontSize(8);
-        rowY = doc.y + 5;
-        
-        // Saldo inicial referencial
-        doc.font('Helvetica-Bold');
-        doc.text('Saldo Inicial:', cols[1], rowY, { width: colWidths[1] });
-        doc.font('Helvetica');
-        const initialBalance = (data.statementBalance || 0) - (data.accountingBalance || 0);
-        doc.text(this.formatCurrency(initialBalance), cols[4], rowY, { width: colWidths[4], align: 'right' });
-        doc.y = rowY + 15;
-        drawRowLine(doc.y);
 
         if (data.transactions && data.transactions.length > 0) {
           data.transactions.forEach((tx: any) => {
             rowY = doc.y + 5;
             
-            // Check if page break is needed
             if (rowY > 700) {
               doc.addPage();
               drawRowLine(doc.y);
@@ -635,60 +644,31 @@ export class PdfGeneratorService {
             const dateStr = tx.date ? new Date(tx.date).toLocaleDateString('es-EC') : '';
             const detailStr = tx.description || tx.transactionType || '';
             const refStr = tx.reference || tx.checkNumber || tx.paymentMethod || '';
-            const typeStr = tx.transactionType === 'Egreso' ? '(-) CHE/TRANS' : '(+) DEP/TRANS';
+            
+            // Format Amount
+            const amountNum = Number(tx.amount) || 0;
+            const isEgreso = tx.transactionType === 'Egreso' || tx.type === 'Egreso';
+            const amountStr = isEgreso ? `(${this.formatCurrency(amountNum)})` : this.formatCurrency(amountNum);
 
             const heightDet = doc.heightOfString(detailStr, { width: colWidths[1] });
             const heightRow = Math.max(heightDet, 10);
 
             doc.text(dateStr, cols[0], rowY, { width: colWidths[0] });
             doc.text(detailStr, cols[1], rowY, { width: colWidths[1] });
-            doc.text(refStr, cols[2], rowY, { width: colWidths[2] });
-            doc.text(typeStr, cols[3], rowY, { width: colWidths[3] });
-            doc.text(this.formatCurrency(tx.amount), cols[4], rowY, { width: colWidths[4], align: 'right' });
+            doc.text(`${refStr} / ${isEgreso ? 'Egreso' : 'Ingreso'}`, cols[2], rowY, { width: colWidths[2] });
+            doc.text(amountStr, cols[3], rowY, { width: colWidths[3], align: 'right' });
             
             doc.y = rowY + heightRow + 5;
             drawRowLine(doc.y);
           });
-        }
-
-        // Saldo final line inside table
-        rowY = doc.y + 5;
-        if (rowY > 700) {
-          doc.addPage();
-          drawRowLine(doc.y);
+        } else {
           rowY = doc.y + 5;
+          doc.text('No hay movimientos conciliados en este período.', cols[0], rowY, { width: 500, align: 'center' });
+          doc.y = rowY + 15;
+          drawRowLine(doc.y);
         }
-        doc.font('Helvetica-Bold');
-        doc.text(`Saldo bancario al ${data.reconciliationDate ? new Date(data.reconciliationDate).toLocaleDateString('es-EC') : ''}`, cols[1], rowY, { width: colWidths[1] });
-        doc.font('Helvetica');
-        doc.text(this.formatCurrency(data.statementBalance), cols[4], rowY, { width: colWidths[4], align: 'right' });
-        doc.y = rowY + 15;
-        drawRowLine(doc.y);
 
-        doc.moveDown(2);
-        
-        // Tabla de Resumen
-        doc.fontSize(12).font('Helvetica-Bold').text('Resumen:', { underline: true });
-        doc.moveDown(1);
-        
-        drawRowLine(doc.y);
-        rowY = doc.y + 5;
-        doc.font('Helvetica-Bold').fontSize(9);
-        const resDate = data.reconciliationDate ? new Date(data.reconciliationDate).toLocaleDateString('es-EC') : '';
-        doc.text(`Saldo bancario al ${resDate}`, cols[0], rowY, { width: 170 });
-        doc.text(`Saldo contable al ${resDate}`, cols[0] + 180, rowY, { width: 170 });
-        doc.text('Diferencia', cols[0] + 360, rowY, { width: 100 });
-        doc.y = rowY + 15;
-        drawRowLine(doc.y);
-        
-        rowY = doc.y + 5;
-        doc.font('Helvetica').fontSize(9);
-        doc.text(this.formatCurrency(data.statementBalance), cols[0], rowY, { width: 170 });
-        doc.text(this.formatCurrency(data.accountingBalance), cols[0] + 180, rowY, { width: 170 });
-        doc.text(this.formatCurrency(data.difference), cols[0] + 360, rowY, { width: 100 });
-        doc.y = rowY + 15;
-        drawRowLine(doc.y);
-
+        doc.moveDown(3);
         this.addSignaturesSection(doc);
 
         doc.end();
