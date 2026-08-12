@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { ElectronicDocumentRegistration } from '../entities/electronic-document-registration.entity';
 import { ElectronicDocumentLineItem } from '../entities/electronic-document-line-item.entity';
 import { XmlInvoiceParserService } from './xml-invoice-parser.service';
+import { PersonasService } from '../../personas/personas.service';
 import { DocumentReviewStatus } from '../enums/document-review-status.enum';
 import { DocumentProcessingStatus } from '../enums/document-processing-status.enum';
 import { LineMappingType } from '../enums/line-mapping-type.enum';
@@ -33,6 +34,7 @@ export class ElectronicDocumentRegistrationService {
     private readonly lineItemRepository: Repository<ElectronicDocumentLineItem>,
     private readonly xmlParser: XmlInvoiceParserService,
     private readonly journalEntryService: JournalEntryService,
+    private readonly personasService: PersonasService,
   ) {}
 
   async search(filters: SearchDocumentsDto): Promise<DocumentConsultView[]> {
@@ -277,6 +279,27 @@ export class ElectronicDocumentRegistrationService {
     
     if (doc.processingStatus === DocumentProcessingStatus.PROCESSED) {
       throw new BadRequestException('El documento ya está procesado');
+    }
+
+    // Auto-crear persona si no existe
+    if (doc.supplierIdentification) {
+      const existingPersonas = await this.personasService.findAll({ filtro: doc.supplierIdentification });
+      const exactMatch = existingPersonas.find(p => p.ruc === doc.supplierIdentification || p.cedula === doc.supplierIdentification);
+      
+      if (!exactMatch) {
+        try {
+          await this.personasService.create({
+            nombre: doc.supplierName || 'Persona Sin Nombre',
+            ruc: doc.supplierIdentification.length > 10 ? doc.supplierIdentification : undefined,
+            cedula: doc.supplierIdentification.length <= 10 ? doc.supplierIdentification : undefined,
+            tipo: 'Natural',
+            estado: 'Activo',
+            esProveedor: true
+          });
+        } catch (e) {
+          console.error("Error creando persona automáticamente:", e);
+        }
+      }
     }
 
     // Crear asiento contable (Journal Entry)

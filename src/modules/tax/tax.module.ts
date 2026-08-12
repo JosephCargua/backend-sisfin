@@ -20,6 +20,7 @@ import { ElectronicDocumentRegistrationService } from './services/electronic-doc
 import { XmlInvoiceParserService } from './services/xml-invoice-parser.service';
 
 import { AccountingModule } from '../accounting/accounting.module';
+import { PersonasModule } from '../personas/personas.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AccountingModule } from '../accounting/accounting.module';
       ATS,
     ]),
     AccountingModule,
+    PersonasModule,
   ],
   controllers: [
     ElectronicInvoiceController,
