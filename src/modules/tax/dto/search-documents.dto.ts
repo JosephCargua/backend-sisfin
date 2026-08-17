@@ -7,10 +7,18 @@ export enum DocumentPersonType {
   CUSTOMER = 'CUSTOMER',
 }
 
-export enum DocumentQuickFilter {
-  ELECTRONIC = 'ELECTRONIC',
-  UNAUTHORIZED = 'UNAUTHORIZED',
-  RETENTION_PENDING = 'RETENTION_PENDING',
+export enum DocumentStatusFilter {
+  ALL = 'ALL',
+  PENDING = 'PENDING',
+  ANNULLED = 'ANNULLED',
+  COLLECTED = 'COLLECTED',
+  PAID = 'PAID',
+}
+
+export enum DocumentEmissionFilter {
+  ALL = 'ALL',
+  FISICA = 'FISICA',
+  ELECTRONICA = 'ELECTRONICA',
 }
 
 export class SearchDocumentsDto {
@@ -27,14 +35,6 @@ export class SearchDocumentsDto {
   documentTypeCode?: string;
 
   @IsOptional()
-  @IsEnum(DocumentReviewStatus)
-  reviewStatus?: DocumentReviewStatus;
-
-  @IsOptional()
-  @IsEnum(DocumentProcessingStatus)
-  processingStatus?: DocumentProcessingStatus;
-
-  @IsOptional()
   @IsString()
   dateFrom?: string;
 
@@ -47,14 +47,14 @@ export class SearchDocumentsDto {
   personType?: DocumentPersonType;
 
   @IsOptional()
-  @IsEnum(DocumentQuickFilter)
-  quickFilter?: DocumentQuickFilter;
+  @IsEnum(DocumentStatusFilter)
+  statusFilter?: DocumentStatusFilter;
+
+  @IsOptional()
+  @IsEnum(DocumentEmissionFilter)
+  emissionFilter?: DocumentEmissionFilter;
 
   @IsOptional()
   @IsString()
   purchaseOrder?: string;
-
-  @IsOptional()
-  @IsString()
-  isAnnulled?: string;
 }

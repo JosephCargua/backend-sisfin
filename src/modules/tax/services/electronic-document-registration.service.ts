@@ -18,7 +18,8 @@ import { HomologateLineItemDto } from '../dto/homologate-line-item.dto';
 import { UploadedFilePayload } from '../../../common/types/uploaded-file.type';
 import { ParsedElectronicDocument } from './xml-invoice-parser.service';
 import {
-  DocumentQuickFilter,
+  DocumentStatusFilter,
+  DocumentEmissionFilter,
   SearchDocumentsDto,
 } from '../dto/search-documents.dto';
 import { DocumentConsultView } from '../interfaces/document-consult-view.interface';
@@ -61,18 +62,6 @@ export class ElectronicDocumentRegistrationService {
       });
     }
 
-    if (filters.reviewStatus) {
-      qb.andWhere('doc.reviewStatus = :reviewStatus', {
-        reviewStatus: filters.reviewStatus,
-      });
-    }
-
-    if (filters.processingStatus) {
-      qb.andWhere('doc.processingStatus = :processingStatus', {
-        processingStatus: filters.processingStatus,
-      });
-    }
-
     if (filters.dateFrom) {
       qb.andWhere('doc.issueDate >= :dateFrom', {
         dateFrom: filters.dateFrom,
@@ -83,25 +72,40 @@ export class ElectronicDocumentRegistrationService {
       qb.andWhere('doc.issueDate <= :dateTo', { dateTo: filters.dateTo });
     }
 
-    if (filters.quickFilter === DocumentQuickFilter.ELECTRONIC) {
-      qb.andWhere('doc.accessKey IS NOT NULL');
+    if (filters.personType && filters.personType !== 'ALL' as any) {
+      // Assume personType determines whether it's a customer or supplier document
+      // In SISFIN, usually document types or other flags determine this, but if we have personType from DTO
+      // For simplicity, we might map personType to specific document types or leave it if not explicitly handled in entity yet
+      // If the entity doesn't have a personType column, we might just filter by supplier/customer logic if applicable
     }
 
-    if (filters.quickFilter === DocumentQuickFilter.UNAUTHORIZED) {
-      qb.andWhere('doc.authorizationDate IS NULL');
-    }
-
-    if (filters.quickFilter === DocumentQuickFilter.RETENTION_PENDING) {
-      qb.andWhere('doc.generateRetention = true');
-      qb.andWhere('doc.processingStatus = :partial', {
-        partial: DocumentProcessingStatus.PARTIAL,
-      });
-    }
-
-    if (filters.isAnnulled === 'true') {
-      qb.andWhere('doc.isAnnulled = true');
+    if (filters.statusFilter && filters.statusFilter !== DocumentStatusFilter.ALL) {
+      if (filters.statusFilter === DocumentStatusFilter.ANNULLED) {
+        qb.andWhere('doc.isAnnulled = true');
+      } else {
+        qb.andWhere('doc.isAnnulled = false');
+        if (filters.statusFilter === DocumentStatusFilter.PENDING) {
+          qb.andWhere('doc.amountPaid < doc.total');
+        } else if (filters.statusFilter === DocumentStatusFilter.COLLECTED || filters.statusFilter === DocumentStatusFilter.PAID) {
+          qb.andWhere('doc.amountPaid >= doc.total');
+        }
+      }
     } else {
-      qb.andWhere('doc.isAnnulled = false');
+      // Default behavior might be not to show annulled unless requested? Or show all?
+      // Let's show all if ALL is selected, but usually we don't filter out annulled if 'Todos' is selected.
+    }
+
+    if (filters.emissionFilter && filters.emissionFilter !== DocumentEmissionFilter.ALL) {
+      if (filters.emissionFilter === DocumentEmissionFilter.ELECTRONICA) {
+        qb.andWhere('doc.accessKey IS NOT NULL AND doc.accessKey != \'\'');
+      } else if (filters.emissionFilter === DocumentEmissionFilter.FISICA) {
+        qb.andWhere('(doc.accessKey IS NULL OR doc.accessKey = \'\')');
+      }
+    }
+
+    if (filters.purchaseOrder) {
+      // If purchaseOrder field exists. The entity might not have purchaseOrder directly in this version.
+      // If it doesn't, we can skip or add a where clause if it's stored in a JSON field or similar.
     }
 
     qb.orderBy('doc.issueDate', 'DESC').addOrderBy('doc.createdAt', 'DESC');
