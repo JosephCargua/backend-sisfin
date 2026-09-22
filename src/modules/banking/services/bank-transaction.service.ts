@@ -109,7 +109,7 @@ export class BankTransactionService {
 
     const uniqueCombined = [];
     for (const item of combined) {
-      if (item.sourceJournalEntryId && linkedJournalIds.has(item.sourceJournalEntryId)) {
+      if ((item as any).sourceJournalEntryId && linkedJournalIds.has((item as any).sourceJournalEntryId)) {
         // Drop the JournalEntryLine because we already have the BankTransaction covering it
         continue;
       }
@@ -235,7 +235,7 @@ export class BankTransactionService {
 
     const uniqueCombined = [];
     for (const item of combined) {
-      if (item.sourceJournalEntryId && linkedJournalIds.has(item.sourceJournalEntryId)) {
+      if ((item as any).sourceJournalEntryId && linkedJournalIds.has((item as any).sourceJournalEntryId)) {
         // Drop the JournalEntryLine because we already have the BankTransaction covering it
         continue;
       }
