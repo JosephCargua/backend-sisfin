@@ -64,13 +64,18 @@ export class BankTransactionService {
   }
 
   async findByBankAccount(bankAccountId: string): Promise<any[]> {
+    const bankAccount = await this.bankAccountRepository.findOne({ where: { id: bankAccountId } });
+    if (!bankAccount) {
+      throw new NotFoundException('Bank account not found');
+    }
+
     const transactions = await this.bankTransactionRepository.find({
       where: { bankAccountId, isAnnulled: false },
       order: { date: 'DESC', createdAt: 'DESC' },
     });
 
     const journalLines = await this.journalEntryLineRepository.find({
-      where: { accountId: bankAccountId },
+      where: { accountId: bankAccount.accountId },
       relations: ['journalEntry'],
     });
 
@@ -117,6 +122,10 @@ export class BankTransactionService {
     startDate?: string,
     endDate?: string,
   ): Promise<any> {
+    const bankAccount = await this.bankAccountRepository.findOne({ where: { id: bankAccountId } });
+    if (!bankAccount) {
+      throw new NotFoundException('Bank account not found');
+    }
     
     // Calcular Saldo Inicial (sumatoria histórica antes del startDate)
     let initialBalance = 0;
@@ -139,7 +148,7 @@ export class BankTransactionService {
       const prevJournalLines = await this.journalEntryLineRepository
         .createQueryBuilder('line')
         .leftJoinAndSelect('line.journalEntry', 'je')
-        .where('line.accountId = :bankAccountId', { bankAccountId })
+        .where('line.accountId = :accountId', { accountId: bankAccount.accountId })
         .andWhere('je.date < :startDate', { startDate: new Date(startDate) })
         .getMany();
 
@@ -178,7 +187,7 @@ export class BankTransactionService {
     const journalQueryBuilder = this.journalEntryLineRepository
       .createQueryBuilder('line')
       .leftJoinAndSelect('line.journalEntry', 'je')
-      .where('line.accountId = :bankAccountId', { bankAccountId })
+      .where('line.accountId = :accountId', { accountId: bankAccount.accountId })
       .andWhere('je.status != :status', { status: JournalEntryStatus.CANCELLED });
 
     if (startDate) {
