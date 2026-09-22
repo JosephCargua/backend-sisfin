@@ -7,9 +7,15 @@ import { CustomerController } from './controllers/customer.controller';
 import { InvoiceController } from './controllers/invoice.controller';
 import { CustomerService } from './services/customer.service';
 import { InvoiceService } from './services/invoice.service';
+import { AccountingModule } from '../accounting/accounting.module';
+import { ConfigModule as CompanyConfigModule } from '../config/config.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Customer, Invoice, Payment])],
+  imports: [
+    TypeOrmModule.forFeature([Customer, Invoice, Payment]),
+    AccountingModule,
+    CompanyConfigModule
+  ],
   controllers: [CustomerController, InvoiceController],
   providers: [CustomerService, InvoiceService],
   exports: [CustomerService, InvoiceService],

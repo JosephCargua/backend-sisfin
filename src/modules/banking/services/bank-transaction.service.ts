@@ -93,28 +93,29 @@ export class BankTransactionService {
       isAnnulled: false,
       personName: null,
       payToOrderOf: null,
-      checkNumber: line.reference || line.journalEntry.reference,
       checkDate: null,
       bankReconciliationId: line.bankReconciliationId,
       createdAt: line.journalEntry.createdAt,
+      sourceJournalEntryId: line.journalEntry.id,
     }));
 
     const combined = [...transactions, ...mappedJournalLines];
     combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const uniqueCombined = [];
-    const seen = new Set();
-    for (const item of combined) {
-      const dateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : '';
-      const desc = (item.description || item.transactionType || '').trim().toLowerCase();
-      const amt = Number(item.amount).toFixed(2);
-      const key = `${dateStr}-${desc}-${amt}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueCombined.push(item);
-      }
-    }
+    // Extract all journalEntryIds from transactions
+    const linkedJournalIds = new Set(
+      transactions.map(tx => tx.journalEntryId).filter(id => id)
+    );
 
+    const uniqueCombined = [];
+    for (const item of combined) {
+      if (item.sourceJournalEntryId && linkedJournalIds.has(item.sourceJournalEntryId)) {
+        // Drop the JournalEntryLine because we already have the BankTransaction covering it
+        continue;
+      }
+      uniqueCombined.push(item);
+    }
+    
     return uniqueCombined;
   }
 
@@ -221,22 +222,24 @@ export class BankTransactionService {
       checkDate: null,
       bankReconciliationId: line.bankReconciliationId,
       createdAt: line.journalEntry.createdAt,
+      sourceJournalEntryId: line.journalEntry.id,
     }));
 
     const combined = [...transactions, ...mappedJournalLines];
     combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    // Extract all journalEntryIds from transactions
+    const linkedJournalIds = new Set(
+      transactions.map(tx => tx.journalEntryId).filter(id => id)
+    );
+
     const uniqueCombined = [];
-    const seen = new Set();
     for (const item of combined) {
-      const dateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : '';
-      const desc = (item.description || item.transactionType || '').trim().toLowerCase();
-      const amt = Number(item.amount).toFixed(2);
-      const key = `${dateStr}-${desc}-${amt}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueCombined.push(item);
+      if (item.sourceJournalEntryId && linkedJournalIds.has(item.sourceJournalEntryId)) {
+        // Drop the JournalEntryLine because we already have the BankTransaction covering it
+        continue;
       }
+      uniqueCombined.push(item);
     }
 
     return {

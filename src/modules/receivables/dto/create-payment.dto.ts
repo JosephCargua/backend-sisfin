@@ -1,4 +1,4 @@
-import { IsUUID, IsDateString, IsNumber, Min } from 'class-validator';
+import { IsUUID, IsDateString, IsNumber, Min, IsOptional, IsString } from 'class-validator';
 
 export class CreatePaymentDto {
   @IsUUID()
@@ -10,5 +10,17 @@ export class CreatePaymentDto {
 
   @IsDateString()
   date: string;
+
+  @IsUUID()
+  @IsOptional()
+  bankAccountId?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
+
+  @IsString()
+  @IsOptional()
+  reference?: string;
 }
 

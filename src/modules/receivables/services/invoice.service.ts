@@ -11,6 +11,10 @@ import { Payment } from '../entities/payment.entity';
 import { Customer } from '../entities/customer.entity';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
+import { JournalEntry } from '../../accounting/entities/journal-entry.entity';
+import { JournalEntryLine } from '../../accounting/entities/journal-entry-line.entity';
+import { JournalEntryService } from '../../accounting/services/journal-entry.service';
+import { ConfigService } from '../../config/config.service';
 
 @Injectable()
 export class InvoiceService {
@@ -21,6 +25,8 @@ export class InvoiceService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
+    private journalEntryService: JournalEntryService,
+    private configService: ConfigService,
     private dataSource: DataSource,
   ) {}
 
@@ -63,6 +69,37 @@ export class InvoiceService {
       });
 
       const saved = await queryRunner.manager.save(invoice);
+
+      // Auto-Accounting
+      const settings = await this.configService.getSettings();
+      const accounts = settings.defaultAccounts || {};
+      
+      if (accounts.salesAccountId && accounts.receivableAccountId) {
+        const entryNumber = await this.journalEntryService.generateEntryNumber(saved.date, queryRunner);
+        const journalEntry = queryRunner.manager.create(JournalEntry, {
+          entryNumber,
+          date: saved.date,
+          description: `Factura a Cliente ${saved.invoiceNumber} - ${customer.name}`,
+        });
+        const savedJournal = await queryRunner.manager.save(journalEntry);
+
+        const line1 = queryRunner.manager.create(JournalEntryLine, {
+          journalEntry: savedJournal,
+          accountId: accounts.receivableAccountId,
+          debit: saved.total,
+          credit: 0,
+          description: `CxC Factura ${saved.invoiceNumber}`,
+        });
+        const line2 = queryRunner.manager.create(JournalEntryLine, {
+          journalEntry: savedJournal,
+          accountId: accounts.salesAccountId,
+          debit: 0,
+          credit: saved.total,
+          description: `Ingreso por Ventas Factura ${saved.invoiceNumber}`,
+        });
+        
+        await queryRunner.manager.save([line1, line2]);
+      }
       await queryRunner.commitTransaction();
       return saved;
     } catch (error) {
@@ -101,7 +138,63 @@ export class InvoiceService {
         date: new Date(createPaymentDto.date),
       });
 
-      await queryRunner.manager.save(payment);
+      const savedPayment = await queryRunner.manager.save(payment);
+
+      // Auto-Accounting and Treasury
+      if (createPaymentDto.bankAccountId) {
+        const settings = await this.configService.getSettings();
+        const accounts = settings.defaultAccounts || {};
+        
+        if (accounts.receivableAccountId) {
+          // Obtener datos auxiliares
+          const customer = await queryRunner.manager.findOne(Customer, { where: { id: invoice.customerId } });
+          const bankAccount = await queryRunner.manager.findOne('BankAccount', { where: { id: createPaymentDto.bankAccountId } });
+          
+          if (customer && bankAccount) {
+            // Crear JournalEntry
+            const entryNumber = await this.journalEntryService.generateEntryNumber(savedPayment.date, queryRunner);
+            const journalEntry = queryRunner.manager.create(JournalEntry, {
+              entryNumber,
+              date: savedPayment.date,
+              description: `Cobro a Cliente ${customer.name} s/Factura ${invoice.invoiceNumber}`,
+            });
+            const savedJournal = await queryRunner.manager.save(journalEntry);
+
+            const line1 = queryRunner.manager.create(JournalEntryLine, {
+              journalEntry: savedJournal,
+              accountId: (bankAccount as any).accountId, // bankAccount.accountId es la cuenta contable
+              debit: savedPayment.amount,
+              credit: 0,
+              description: `Ingreso a Bancos Cobro a ${customer.name}`,
+            });
+            const line2 = queryRunner.manager.create(JournalEntryLine, {
+              journalEntry: savedJournal,
+              accountId: accounts.receivableAccountId,
+              debit: 0,
+              credit: savedPayment.amount,
+              description: `CxC Cobro Factura ${invoice.invoiceNumber}`,
+            });
+            await queryRunner.manager.save([line1, line2]);
+
+            // Crear BankTransaction amarrada al JournalEntry
+            const bankTx = queryRunner.manager.create('BankTransaction', {
+              bankAccountId: createPaymentDto.bankAccountId,
+              date: savedPayment.date,
+              description: `Cobro Factura ${invoice.invoiceNumber}`,
+              amount: savedPayment.amount,
+              type: 'Ingreso',
+              transactionType: 'Cobro Cliente',
+              paymentMethod: createPaymentDto.paymentMethod || 'Transferencia',
+              isAnnulled: false,
+              personaId: customer.id,
+              personName: customer.name,
+              checkNumber: createPaymentDto.reference,
+              journalEntryId: savedJournal.id,
+            });
+            await queryRunner.manager.save(bankTx);
+          }
+        }
+      }
 
       invoice.paidAmount = newPaid.toNumber();
       await queryRunner.manager.save(invoice);

@@ -60,6 +60,9 @@ export class BankTransaction {
   @Column({ type: 'uuid', nullable: true })
   bankReconciliationId: string | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  journalEntryId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

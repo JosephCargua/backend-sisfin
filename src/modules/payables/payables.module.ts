@@ -7,10 +7,14 @@ import { SupplierController } from './controllers/supplier.controller';
 import { SupplierInvoiceController } from './controllers/supplier-invoice.controller';
 import { SupplierService } from './services/supplier.service';
 import { SupplierInvoiceService } from './services/supplier-invoice.service';
+import { AccountingModule } from '../accounting/accounting.module';
+import { ConfigModule as CompanyConfigModule } from '../config/config.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Supplier, SupplierInvoice, SupplierPayment]),
+    AccountingModule,
+    CompanyConfigModule
   ],
   controllers: [SupplierController, SupplierInvoiceController],
   providers: [SupplierService, SupplierInvoiceService],

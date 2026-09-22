@@ -428,7 +428,7 @@ export class JournalEntryService {
     }
   }
 
-  private async generateEntryNumber(
+  public async generateEntryNumber(
     date: Date | string,
     queryRunner: any,
   ): Promise<string> {
