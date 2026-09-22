@@ -105,9 +105,10 @@ export class BankTransactionService {
     const uniqueCombined = [];
     const seen = new Set();
     for (const item of combined) {
+      const dateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : '';
       const desc = (item.description || item.transactionType || '').trim().toLowerCase();
       const amt = Number(item.amount).toFixed(2);
-      const key = `${desc}-${amt}`;
+      const key = `${dateStr}-${desc}-${amt}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueCombined.push(item);
@@ -228,9 +229,10 @@ export class BankTransactionService {
     const uniqueCombined = [];
     const seen = new Set();
     for (const item of combined) {
+      const dateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : '';
       const desc = (item.description || item.transactionType || '').trim().toLowerCase();
       const amt = Number(item.amount).toFixed(2);
-      const key = `${desc}-${amt}`;
+      const key = `${dateStr}-${desc}-${amt}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueCombined.push(item);
