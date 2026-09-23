@@ -74,7 +74,7 @@ export class PdfGeneratorService {
     }
   }
 
-  generateBalanceSheet(data: any): Promise<Buffer> {
+  generateBalanceSheet(data: any, signatures?: any): Promise<Buffer> {
     return new Promise(async (resolve, reject) => {
       try {
         if (!data) {
@@ -184,6 +184,9 @@ export class PdfGeneratorService {
           { align: 'right', underline: true },
         );
 
+        const sigsToUse = signatures || data.signatures;
+        this.addSignaturesSection(doc, sigsToUse);
+
         doc.end();
       } catch (error) {
         reject(error);
@@ -191,7 +194,7 @@ export class PdfGeneratorService {
     });
   }
 
-  generateIncomeStatement(data: any): Promise<Buffer> {
+  generateIncomeStatement(data: any, signatures?: any): Promise<Buffer> {
     return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
@@ -271,7 +274,9 @@ export class PdfGeneratorService {
           { align: 'right', underline: true },
         );
 
-        this.addSignaturesSection(doc, data.signatures);
+        // Use the passed signatures if available, otherwise fallback to data.signatures or undefined
+        const sigsToUse = signatures || data.signatures;
+        this.addSignaturesSection(doc, sigsToUse);
 
         doc.end();
       } catch (error) {
@@ -669,7 +674,9 @@ export class PdfGeneratorService {
         }
 
         doc.moveDown(3);
-        this.addSignaturesSection(doc);
+        // Use the passed signatures if available, otherwise fallback to data.signatures or undefined
+        const sigsToUse = signatures || data.signatures;
+        this.addSignaturesSection(doc, sigsToUse);
 
         doc.end();
       } catch (error) {

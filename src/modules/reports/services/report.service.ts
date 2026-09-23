@@ -238,10 +238,10 @@ export class ReportService {
     };
   }
 
-  async generateBalanceSheetPDF(date: string, costCenterId?: string): Promise<Buffer> {
+  async generateBalanceSheetPDF(date: string, costCenterId?: string, signatures?: any): Promise<Buffer> {
     try {
       const data = await this.generateBalanceSheet(date, costCenterId);
-      return await this.pdfGeneratorService.generateBalanceSheet(data);
+      return await this.pdfGeneratorService.generateBalanceSheet(data, signatures);
     } catch (error) {
       console.error('Error generating balance sheet PDF:', error);
       throw error;
@@ -259,11 +259,17 @@ export class ReportService {
     costCenterId?: string,
     signatures?: any,
   ): Promise<Buffer> {
-    const data = await this.generateIncomeStatement(startDate, endDate, costCenterId);
-    if (signatures) {
-      data.signatures = signatures;
+    try {
+      const data = await this.generateIncomeStatement(
+        startDate,
+        endDate,
+        costCenterId,
+      );
+      return await this.pdfGeneratorService.generateIncomeStatement(data, signatures);
+    } catch (error) {
+      console.error('Error generating income statement PDF:', error);
+      throw error;
     }
-    return this.pdfGeneratorService.generateIncomeStatement(data);
   }
 
   async generateIncomeStatementExcel(

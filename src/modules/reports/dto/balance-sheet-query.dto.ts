@@ -7,5 +7,8 @@ export class BalanceSheetQueryDto {
   @IsOptional()
   @IsUUID()
   costCenterId?: string;
+
+  @IsOptional()
+  signatures?: string;
 }
 

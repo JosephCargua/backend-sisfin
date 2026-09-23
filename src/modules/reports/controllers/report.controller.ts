@@ -43,9 +43,11 @@ export class ReportController {
     @Query() query: BalanceSheetQueryDto,
     @Res() res: Response,
   ) {
+    const signatures = query.signatures ? JSON.parse(query.signatures) : undefined;
     const pdf = await this.reportService.generateBalanceSheetPDF(
       query.date,
       query.costCenterId,
+      signatures
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
