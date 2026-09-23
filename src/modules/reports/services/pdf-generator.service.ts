@@ -674,9 +674,7 @@ export class PdfGeneratorService {
         }
 
         doc.moveDown(3);
-        // Use the passed signatures if available, otherwise fallback to data.signatures or undefined
-        const sigsToUse = signatures || data.signatures;
-        this.addSignaturesSection(doc, sigsToUse);
+        this.addSignaturesSection(doc);
 
         doc.end();
       } catch (error) {
