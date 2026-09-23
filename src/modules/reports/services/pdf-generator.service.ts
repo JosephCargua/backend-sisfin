@@ -374,6 +374,11 @@ export class PdfGeneratorService {
   private addSignaturesSection(doc: any, customSignatures?: any): void {
     doc.moveDown(3);
     
+    const requiredSpace = 180;
+    if (doc.y + requiredSpace > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+    }
+    
     const startY = doc.y;
     const lineLength = 180;
     const lineYOffset = 25;
