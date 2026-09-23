@@ -391,31 +391,19 @@ export class PdfGeneratorService {
     let row2Signatures: any[] = [];
     
     if (customSignatures && customSignatures.row1 && customSignatures.row2) {
-      row1Signatures = [
-        {
-          x: 50,
-          ...customSignatures.row1[0],
-        },
-        {
-          x: 320,
-          ...customSignatures.row1[1],
-        },
-      ];
+      row1Signatures = (customSignatures.row1 || [])
+        .filter((s: any) => s && s.name)
+        .map((s: any, i: number) => ({
+          x: i === 0 ? 50 : 320,
+          ...s
+        }));
       
-      row2Signatures = [
-        {
-          x: 50,
-          ...customSignatures.row2[0],
-        },
-        {
-          x: 250,
-          ...customSignatures.row2[1],
-        },
-        {
-          x: 450,
-          ...customSignatures.row2[2],
-        },
-      ];
+      row2Signatures = (customSignatures.row2 || [])
+        .filter((s: any) => s && s.name)
+        .map((s: any, i: number) => ({
+          x: i === 0 ? 50 : (i === 1 ? 250 : 450),
+          ...s
+        }));
     } else {
       row1Signatures = [
         {
