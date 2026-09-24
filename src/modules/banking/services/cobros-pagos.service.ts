@@ -17,6 +17,7 @@ export class CobrosPagosService {
     const query = this.transactionRepo.createQueryBuilder('tx')
       .leftJoinAndMapOne('tx.bankAccount', BankAccount, 'acc', 'acc.id = tx.bankAccountId')
       .leftJoinAndSelect('tx.details', 'details')
+      .where('tx.isAnnulled = false')
       .orderBy('tx.date', 'DESC')
       .addOrderBy('tx.createdAt', 'DESC');
 
