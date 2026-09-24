@@ -12,8 +12,8 @@ export class BankTransaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid' })
-  bankAccountId: string;
+  @Column({ type: 'uuid', nullable: true })
+  bankAccountId: string | null;
 
   @Column({ type: 'date' })
   date: Date;
@@ -38,10 +38,10 @@ export class BankTransaction {
   isAnnulled: boolean;
 
   @Column({ type: 'uuid', nullable: true })
-  personaId: string;
+  personaId: string | null;
 
   @Column({ type: 'varchar', length: 150, nullable: true })
-  personName: string;
+  personName: string | null;
 
   @Column({ type: 'varchar', length: 150, nullable: true })
   payToOrderOf: string;

@@ -8,6 +8,7 @@ import {
   HttpStatus,
   UploadedFile,
   UseInterceptors,
+  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -30,6 +31,16 @@ export class FinancialDocumentController {
   @ApiOperation({ summary: 'Obtener documento por ID' })
   findOne(@Param('id') id: string) {
     return this.documentService.findOne(id);
+  }
+
+  @Get('search/:number')
+  @ApiOperation({ summary: 'Buscar documento por número' })
+  async findByNumber(@Param('number') number: string) {
+    const doc = await this.documentService.findByNumber(number);
+    if (!doc) {
+      throw new NotFoundException('Documento no encontrado');
+    }
+    return doc;
   }
 
   @Post()

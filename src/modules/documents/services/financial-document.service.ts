@@ -40,6 +40,11 @@ export class FinancialDocumentService {
     });
   }
 
+  async findByNumber(documentNumber: string): Promise<FinancialDocument | null> {
+    const doc = await this.documentRepository.findOne({ where: { documentNumber } });
+    return doc;
+  }
+
   async findOne(id: string): Promise<FinancialDocument> {
     const doc = await this.documentRepository.findOne({ where: { id } });
     if (!doc) {

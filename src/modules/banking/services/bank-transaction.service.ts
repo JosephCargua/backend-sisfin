@@ -31,16 +31,18 @@ export class BankTransactionService {
     await queryRunner.startTransaction();
 
     try {
-      const bankAccount = await queryRunner.manager.findOne(BankAccount, {
-        where: { id: createTransactionDto.bankAccountId },
-      });
-
-      if (!bankAccount) {
-        throw new NotFoundException('Bank account not found');
+      let bankAccount = null;
+      if (createTransactionDto.bankAccountId) {
+        bankAccount = await queryRunner.manager.findOne(BankAccount, {
+          where: { id: createTransactionDto.bankAccountId },
+        });
+        if (!bankAccount) {
+          throw new NotFoundException('Bank account not found');
+        }
       }
 
       const transaction = queryRunner.manager.create(BankTransaction, {
-        ...createTransactionDto,
+        ...(createTransactionDto as any),
         date: new Date(createTransactionDto.date),
         checkDate: createTransactionDto.checkDate ? new Date(createTransactionDto.checkDate) : undefined,
       });
@@ -287,7 +289,7 @@ export class BankTransactionService {
 
       // Update basic fields
       queryRunner.manager.merge(BankTransaction, existing, {
-        ...updateDto,
+        ...(updateDto as any),
         date: new Date(updateDto.date),
         checkDate: updateDto.checkDate ? new Date(updateDto.checkDate) : undefined,
       });

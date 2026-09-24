@@ -13,6 +13,14 @@ import { Type } from 'class-transformer';
 
 export class CreateBankTransactionDetailDto {
   @IsString()
+  @IsOptional()
+  sourceType?: string;
+
+  @IsString()
+  @IsOptional()
+  documentNumber?: string;
+
+  @IsString()
   @MaxLength(150)
   accountName: string;
 
@@ -32,7 +40,12 @@ export class CreateBankTransactionDetailDto {
 
 export class CreateBankTransactionDto {
   @IsUUID()
-  bankAccountId: string;
+  @IsOptional()
+  bankAccountId?: string | null;
+
+  @IsUUID()
+  @IsOptional()
+  personaId?: string | null;
 
   @IsDateString()
   date: string;
