@@ -444,6 +444,94 @@ export class BankTransactionService {
     }
   }
 
+  async fixMissingJournalEntries(): Promise<{ fixed: number }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let fixedCount = 0;
+    try {
+      const txs = await queryRunner.manager.find(BankTransaction, {
+        where: { isAnnulled: false },
+        relations: ['details']
+      });
+
+      for (const saved of txs) {
+        if (!saved.journalEntryId) {
+          const bankAccount = saved.bankAccountId ? await queryRunner.manager.findOne(BankAccount, { where: { id: saved.bankAccountId } }) : null;
+          
+          const jeLines = [];
+          let bankAccountIdForJe = null;
+          
+          if (bankAccount && bankAccount.accountId) {
+             bankAccountIdForJe = bankAccount.accountId;
+          } else {
+             const res = await queryRunner.manager.query(`SELECT "accountId" FROM cash_accounts LIMIT 1`);
+             if (res && res.length > 0) bankAccountIdForJe = res[0].accountId;
+          }
+
+          if (bankAccountIdForJe && saved.details && saved.details.length > 0) {
+             let totalMonto = Number(saved.amount);
+             let offsetAccountId = null;
+             
+             if (saved.type === 'Ingreso' || saved.type === 'Cobro') {
+                const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR COBRAR%' OR name ILIKE '%CLIENTES%' LIMIT 1`);
+                if (res && res.length > 0) offsetAccountId = res[0].id;
+                
+                if (offsetAccountId) {
+                  jeLines.push({ accountId: bankAccountIdForJe, debit: totalMonto, credit: 0, description: saved.description || 'Cobro' });
+                  jeLines.push({ accountId: offsetAccountId, debit: 0, credit: totalMonto, description: saved.description || 'Cobro' });
+                }
+             } else {
+                const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
+                if (res && res.length > 0) offsetAccountId = res[0].id;
+                
+                if (offsetAccountId) {
+                  jeLines.push({ accountId: offsetAccountId, debit: totalMonto, credit: 0, description: saved.description || 'Pago' });
+                  jeLines.push({ accountId: bankAccountIdForJe, debit: 0, credit: totalMonto, description: saved.description || 'Pago' });
+                }
+             }
+
+             if (jeLines.length === 2) {
+               const entryNumber = await this.journalEntryService.generateEntryNumber(saved.date, queryRunner);
+               
+               const journalEntry = queryRunner.manager.create(JournalEntry, {
+                 entryNumber,
+                 date: saved.date,
+                 description: saved.description || `Transacción Bancaria ${saved.type}`,
+                 status: JournalEntryStatus.POSTED,
+                 totalDebit: totalMonto,
+                 totalCredit: totalMonto,
+                 reference: saved.checkNumber || saved.paymentMethod || null,
+               });
+               const savedJe = await queryRunner.manager.save(journalEntry);
+               
+               for (const line of jeLines) {
+                 const jeLine = queryRunner.manager.create(JournalEntryLine, {
+                   ...line,
+                   journalEntryId: savedJe.id
+                 });
+                 await queryRunner.manager.save(jeLine);
+               }
+               
+               saved.journalEntryId = savedJe.id;
+               await queryRunner.manager.save(saved);
+               fixedCount++;
+             }
+          }
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return { fixed: fixedCount };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async delete(id: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();

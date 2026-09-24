@@ -21,6 +21,12 @@ export class BankTransactionController {
     private readonly bankTransactionService: BankTransactionService,
   ) {}
 
+  @Post('fix-missing-journal-entries')
+  @ApiOperation({ summary: 'Retroactively create journal entries for past bank transactions' })
+  fixMissingJournalEntries() {
+    return this.bankTransactionService.fixMissingJournalEntries();
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new bank transaction' })
