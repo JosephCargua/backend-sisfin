@@ -10,6 +10,9 @@ import { BankAccount } from '../entities/bank-account.entity';
 import { CreateBankTransactionDto } from '../dto/create-bank-transaction.dto';
 import { JournalEntryLine } from '../../accounting/entities/journal-entry-line.entity';
 import { JournalEntryStatus } from '../../accounting/enums/journal-entry-status.enum';
+import { FinancialDocument } from '../../documents/entities/financial-document.entity';
+import { ElectronicDocumentRegistration } from '../../tax/entities/electronic-document-registration.entity';
+import { DocumentPayment, DocumentPaymentType, PaymentTransactionType } from '../../documents/entities/document-payment.entity';
 
 @Injectable()
 export class BankTransactionService {
@@ -55,6 +58,51 @@ export class BankTransactionService {
       }
 
       const saved = await queryRunner.manager.save(transaction);
+
+      // Actualizar amountPaid de los documentos y crear DocumentPayment
+      if (saved.details && saved.details.length > 0) {
+        for (const detail of saved.details) {
+          if (detail.sourceType === 'DOCUMENT' && detail.documentNumber) {
+            let docId = null;
+            let docType = null;
+            
+            // Buscar en FinancialDocument
+            const document = await queryRunner.manager.findOne(FinancialDocument, {
+              where: { documentNumber: detail.documentNumber }
+            });
+            if (document) {
+              document.amountPaid = Number(document.amountPaid) + Number(detail.amount);
+              await queryRunner.manager.save(document);
+              docId = document.id;
+              docType = DocumentPaymentType.FINANCIAL;
+            }
+            
+            // Buscar en ElectronicDocumentRegistration
+            const electronicDoc = await queryRunner.manager.findOne(ElectronicDocumentRegistration, {
+              where: { documentNumber: detail.documentNumber }
+            });
+            if (electronicDoc) {
+              electronicDoc.amountPaid = Number(electronicDoc.amountPaid) + Number(detail.amount);
+              await queryRunner.manager.save(electronicDoc);
+              docId = electronicDoc.id;
+              docType = DocumentPaymentType.ELECTRONIC;
+            }
+
+            // Crear el registro en DocumentPayment
+            if (docId && docType) {
+              const paymentRecord = queryRunner.manager.create(DocumentPayment, {
+                documentId: docId,
+                documentType: docType,
+                amount: Number(detail.amount),
+                transactionType: PaymentTransactionType.BANK,
+                transactionId: saved.id
+              });
+              await queryRunner.manager.save(paymentRecord);
+            }
+          }
+        }
+      }
+
       await queryRunner.commitTransaction();
       return saved;
     } catch (error) {
