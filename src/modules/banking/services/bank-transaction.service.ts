@@ -416,8 +416,8 @@ export class BankTransactionService {
       // Update basic fields
       queryRunner.manager.merge(BankTransaction, existing, {
         ...(updateDto as any),
-        date: new Date(updateDto.date),
-        checkDate: updateDto.checkDate ? new Date(updateDto.checkDate) : undefined,
+        date: updateDto.date,
+        checkDate: updateDto.checkDate || undefined,
       });
 
       // Handle details
