@@ -8,6 +8,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { BankTransactionService } from '../services/bank-transaction.service';
@@ -65,6 +66,12 @@ export class BankTransactionController {
     @Body() updateTransactionDto: CreateBankTransactionDto,
   ) {
     return this.bankTransactionService.update(id, updateTransactionDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete (annul) a bank transaction' })
+  remove(@Param('id') id: string) {
+    return this.bankTransactionService.delete(id);
   }
 }
 

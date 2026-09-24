@@ -365,5 +365,61 @@ export class BankTransactionService {
       await queryRunner.release();
     }
   }
+
+  async delete(id: string): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const transaction = await queryRunner.manager.findOne(BankTransaction, {
+        where: { id }
+      });
+
+      if (!transaction) {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+
+      transaction.isAnnulled = true;
+      await queryRunner.manager.save(transaction);
+
+      if (transaction.journalEntryId) {
+        await queryRunner.manager.query(
+          `UPDATE journal_entries SET status = $1, "cancellationReason" = $2, "cancelledAt" = NOW() WHERE id = $3`,
+          [JournalEntryStatus.CANCELLED, 'Transacción bancaria eliminada/anulada', transaction.journalEntryId]
+        );
+      }
+
+      // Revertir pagos asociados
+      const payments = await queryRunner.manager.query(
+        `SELECT id, "documentId", "documentType", amount FROM document_payments WHERE "transactionId" = $1 AND "transactionType" = 'bank'`,
+        [id]
+      );
+
+      for (const p of payments) {
+        if (p.documentType === DocumentPaymentType.FINANCIAL) {
+          const doc = await queryRunner.manager.findOne(FinancialDocument, { where: { id: p.documentId } });
+          if (doc) {
+            doc.amountPaid = Number(doc.amountPaid) - Number(p.amount);
+            await queryRunner.manager.save(doc);
+          }
+        } else if (p.documentType === DocumentPaymentType.ELECTRONIC) {
+          const doc = await queryRunner.manager.findOne(ElectronicDocumentRegistration, { where: { id: p.documentId } });
+          if (doc) {
+            doc.amountPaid = Number(doc.amountPaid) - Number(p.amount);
+            await queryRunner.manager.save(doc);
+          }
+        }
+        await queryRunner.manager.query(`DELETE FROM document_payments WHERE id = $1`, [p.id]);
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 }
 
