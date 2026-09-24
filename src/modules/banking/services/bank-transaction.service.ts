@@ -68,9 +68,9 @@ export class BankTransactionService {
             let docType = null;
             
             // Buscar en FinancialDocument
-            const document = await queryRunner.manager.findOne(FinancialDocument, {
-              where: { documentNumber: detail.documentNumber }
-            });
+            const document = await queryRunner.manager.createQueryBuilder(FinancialDocument, 'fd')
+              .where('fd.documentNumber = :docNum', { docNum: detail.documentNumber })
+              .getOne();
             if (document) {
               const newAmountPaid = Number(document.amountPaid) + Number(detail.amount);
               if (newAmountPaid > Number(document.total)) {
@@ -83,9 +83,10 @@ export class BankTransactionService {
             }
             
             // Buscar en ElectronicDocumentRegistration
-            const electronicDoc = await queryRunner.manager.findOne(ElectronicDocumentRegistration, {
-              where: { documentNumber: detail.documentNumber }
-            });
+            const electronicDoc = await queryRunner.manager.createQueryBuilder(ElectronicDocumentRegistration, 'edr')
+              .where('edr.documentNumber = :docNum', { docNum: detail.documentNumber })
+              .orWhere('edr.documentLabel = :docNum', { docNum: detail.documentNumber })
+              .getOne();
             if (electronicDoc) {
               const newAmountPaid = Number(electronicDoc.amountPaid) + Number(detail.amount);
               if (newAmountPaid > Number(electronicDoc.total)) {
