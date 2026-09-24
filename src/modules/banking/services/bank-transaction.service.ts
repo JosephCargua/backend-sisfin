@@ -13,6 +13,7 @@ import { JournalEntryStatus } from '../../accounting/enums/journal-entry-status.
 import { FinancialDocument } from '../../documents/entities/financial-document.entity';
 import { ElectronicDocumentRegistration } from '../../tax/entities/electronic-document-registration.entity';
 import { DocumentPayment, DocumentPaymentType, PaymentTransactionType } from '../../documents/entities/document-payment.entity';
+import { BadRequestException } from '@nestjs/common';
 
 @Injectable()
 export class BankTransactionService {
@@ -71,7 +72,11 @@ export class BankTransactionService {
               where: { documentNumber: detail.documentNumber }
             });
             if (document) {
-              document.amountPaid = Number(document.amountPaid) + Number(detail.amount);
+              const newAmountPaid = Number(document.amountPaid) + Number(detail.amount);
+              if (newAmountPaid > Number(document.total)) {
+                throw new BadRequestException(`El monto a pagar ($${detail.amount}) excede el saldo pendiente del documento ${document.documentNumber}`);
+              }
+              document.amountPaid = newAmountPaid;
               await queryRunner.manager.save(document);
               docId = document.id;
               docType = DocumentPaymentType.FINANCIAL;
@@ -82,7 +87,11 @@ export class BankTransactionService {
               where: { documentNumber: detail.documentNumber }
             });
             if (electronicDoc) {
-              electronicDoc.amountPaid = Number(electronicDoc.amountPaid) + Number(detail.amount);
+              const newAmountPaid = Number(electronicDoc.amountPaid) + Number(detail.amount);
+              if (newAmountPaid > Number(electronicDoc.total)) {
+                throw new BadRequestException(`El monto a pagar ($${detail.amount}) excede el saldo pendiente del documento ${electronicDoc.documentNumber}`);
+              }
+              electronicDoc.amountPaid = newAmountPaid;
               await queryRunner.manager.save(electronicDoc);
               docId = electronicDoc.id;
               docType = DocumentPaymentType.ELECTRONIC;
