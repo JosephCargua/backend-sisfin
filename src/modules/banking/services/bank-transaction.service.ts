@@ -8,12 +8,14 @@ import { BankTransaction } from '../entities/bank-transaction.entity';
 import { BankTransactionDetail } from '../entities/bank-transaction-detail.entity';
 import { BankAccount } from '../entities/bank-account.entity';
 import { CreateBankTransactionDto } from '../dto/create-bank-transaction.dto';
+import { JournalEntry } from '../../accounting/entities/journal-entry.entity';
 import { JournalEntryLine } from '../../accounting/entities/journal-entry-line.entity';
 import { JournalEntryStatus } from '../../accounting/enums/journal-entry-status.enum';
 import { FinancialDocument } from '../../documents/entities/financial-document.entity';
 import { ElectronicDocumentRegistration } from '../../tax/entities/electronic-document-registration.entity';
 import { DocumentPayment, DocumentPaymentType, PaymentTransactionType } from '../../documents/entities/document-payment.entity';
 import { BadRequestException } from '@nestjs/common';
+import { JournalEntryService } from '../../accounting/services/journal-entry.service';
 
 @Injectable()
 export class BankTransactionService {
@@ -24,6 +26,7 @@ export class BankTransactionService {
     private bankAccountRepository: Repository<BankAccount>,
     @InjectRepository(JournalEntryLine)
     private journalEntryLineRepository: Repository<JournalEntryLine>,
+    private journalEntryService: JournalEntryService,
     private dataSource: DataSource,
   ) {}
 
@@ -47,8 +50,8 @@ export class BankTransactionService {
 
       const transaction = queryRunner.manager.create(BankTransaction, {
         ...(createTransactionDto as any),
-        date: new Date(createTransactionDto.date),
-        checkDate: createTransactionDto.checkDate ? new Date(createTransactionDto.checkDate) : undefined,
+        date: createTransactionDto.date,
+        checkDate: createTransactionDto.checkDate || undefined,
       });
 
       // Si hay detalles, mapéalos
@@ -111,6 +114,71 @@ export class BankTransactionService {
             }
           }
         }
+      }
+
+      // GENERAR ASIENTO CONTABLE SI APLICA
+      try {
+        const jeLines = [];
+        let bankAccountIdForJe = null;
+        
+        if (bankAccount && bankAccount.accountId) {
+           bankAccountIdForJe = bankAccount.accountId;
+        } else {
+           // Fallback a cuenta de caja principal
+           const res = await queryRunner.manager.query(`SELECT "accountId" FROM cash_accounts LIMIT 1`);
+           if (res && res.length > 0) bankAccountIdForJe = res[0].accountId;
+        }
+
+        if (bankAccountIdForJe && saved.details && saved.details.length > 0) {
+           let totalMonto = Number(saved.amount);
+           let offsetAccountId = null;
+           
+           if (saved.type === 'Ingreso' || saved.type === 'Cobro') {
+              const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR COBRAR%' OR name ILIKE '%CLIENTES%' LIMIT 1`);
+              if (res && res.length > 0) offsetAccountId = res[0].id;
+              
+              if (offsetAccountId) {
+                jeLines.push({ accountId: bankAccountIdForJe, debit: totalMonto, credit: 0, description: saved.description || 'Cobro' });
+                jeLines.push({ accountId: offsetAccountId, debit: 0, credit: totalMonto, description: saved.description || 'Cobro' });
+              }
+           } else {
+              const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
+              if (res && res.length > 0) offsetAccountId = res[0].id;
+              
+              if (offsetAccountId) {
+                jeLines.push({ accountId: offsetAccountId, debit: totalMonto, credit: 0, description: saved.description || 'Pago' });
+                jeLines.push({ accountId: bankAccountIdForJe, debit: 0, credit: totalMonto, description: saved.description || 'Pago' });
+              }
+           }
+
+           if (jeLines.length === 2) {
+             const entryNumber = await this.journalEntryService.generateEntryNumber(saved.date, queryRunner);
+             
+             const journalEntry = queryRunner.manager.create(JournalEntry, {
+               entryNumber,
+               date: saved.date,
+               description: saved.description || `Transacción Bancaria ${saved.type}`,
+               status: JournalEntryStatus.POSTED,
+               totalDebit: totalMonto,
+               totalCredit: totalMonto,
+               reference: saved.checkNumber || saved.paymentMethod || null,
+             });
+             const savedJe = await queryRunner.manager.save(journalEntry);
+             
+             for (const line of jeLines) {
+               const jeLine = queryRunner.manager.create(JournalEntryLine, {
+                 ...line,
+                 journalEntryId: savedJe.id
+               });
+               await queryRunner.manager.save(jeLine);
+             }
+             
+             saved.journalEntryId = savedJe.id;
+             await queryRunner.manager.save(saved);
+           }
+        }
+      } catch(err) {
+         console.error('Failed to create journal entry for bank transaction:', err);
       }
 
       await queryRunner.commitTransaction();

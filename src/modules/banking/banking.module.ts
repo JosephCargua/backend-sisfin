@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ReportsModule } from '../reports/reports.module';
+import { AccountingModule } from '../accounting/accounting.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankAccount } from './entities/bank-account.entity';
 import { CheckSequence } from './entities/check-sequence.entity';
@@ -26,6 +27,7 @@ import { CobrosPagosService } from './services/cobros-pagos.service';
 @Module({
   imports: [
     ReportsModule,
+    AccountingModule,
     TypeOrmModule.forFeature([
       BankAccount,
       CheckSequence,
