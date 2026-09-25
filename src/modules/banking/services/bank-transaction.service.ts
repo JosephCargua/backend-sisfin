@@ -125,8 +125,13 @@ export class BankTransactionService {
            bankAccountIdForJe = bankAccount.accountId;
         } else {
            // Fallback a cuenta de caja principal
-           const res = await queryRunner.manager.query(`SELECT "accountId" FROM cash_accounts LIMIT 1`);
-           if (res && res.length > 0) bankAccountIdForJe = res[0].accountId;
+           let res = await queryRunner.manager.query(`SELECT "accountId" FROM cash_accounts LIMIT 1`);
+           if (res && res.length > 0) {
+               bankAccountIdForJe = res[0].accountId;
+           } else {
+               res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CAJA%' LIMIT 1`);
+               if (res && res.length > 0) bankAccountIdForJe = res[0].id;
+           }
         }
 
         if (bankAccountIdForJe && saved.details && saved.details.length > 0) {
@@ -466,8 +471,13 @@ export class BankTransactionService {
           if (bankAccount && bankAccount.accountId) {
              bankAccountIdForJe = bankAccount.accountId;
           } else {
-             const res = await queryRunner.manager.query(`SELECT "accountId" FROM cash_accounts LIMIT 1`);
-             if (res && res.length > 0) bankAccountIdForJe = res[0].accountId;
+             let res = await queryRunner.manager.query(`SELECT "accountId" FROM cash_accounts LIMIT 1`);
+             if (res && res.length > 0) {
+                 bankAccountIdForJe = res[0].accountId;
+             } else {
+                 res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CAJA%' LIMIT 1`);
+                 if (res && res.length > 0) bankAccountIdForJe = res[0].id;
+             }
           }
 
           if (bankAccountIdForJe && saved.details && saved.details.length > 0) {
