@@ -41,7 +41,8 @@ export class FinancialDocumentService {
   }
 
   async findByNumber(documentNumber: string): Promise<FinancialDocument | null> {
-    const doc = await this.documentRepository.findOne({ where: { documentNumber } });
+    const cleanNumber = documentNumber.replace(/^[^\d]+/, '').trim();
+    const doc = await this.documentRepository.findOne({ where: { documentNumber: cleanNumber } });
     return doc;
   }
 

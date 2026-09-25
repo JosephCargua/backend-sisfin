@@ -71,8 +71,9 @@ export class BankTransactionService {
             let docType = null;
             
             // Buscar en FinancialDocument
+            const cleanDocNum = detail.documentNumber.replace(/^[^\d]+/, '').trim();
             const document = await queryRunner.manager.createQueryBuilder(FinancialDocument, 'fd')
-              .where('fd.documentNumber = :docNum', { docNum: detail.documentNumber })
+              .where('fd.documentNumber = :docNum', { docNum: cleanDocNum })
               .getOne();
             if (document) {
               const newAmountPaid = Number(document.amountPaid) + Number(detail.amount);

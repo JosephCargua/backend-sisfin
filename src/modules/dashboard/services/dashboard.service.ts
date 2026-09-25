@@ -32,10 +32,10 @@ export class DashboardService {
 
     try {
       const currentDate = date ? new Date(date) : new Date();
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = currentDate.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
       
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+      const startOfMonthStr = startOfMonth.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
 
       const [
         balanceSheet,
