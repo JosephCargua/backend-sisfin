@@ -420,6 +420,7 @@ export class BankTransactionService {
 
   async findAll(): Promise<BankTransaction[]> {
     return this.bankTransactionRepository.find({
+      where: { isAnnulled: false },
       relations: ['details'],
       order: { date: 'DESC', createdAt: 'DESC' },
     });
