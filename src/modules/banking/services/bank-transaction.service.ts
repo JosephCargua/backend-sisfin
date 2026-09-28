@@ -67,69 +67,76 @@ export class BankTransactionService {
       if (saved.details && saved.details.length > 0) {
         for (const detail of saved.details) {
           if (detail.sourceType === 'DOCUMENT' && detail.documentNumber) {
-            let docId = null;
-            let docType = null;
             
-            // Buscar en FinancialDocument con saldo pendiente
+            // Buscar en FinancialDocument y ElectronicDocumentRegistration con saldo pendiente
             const cleanDocNum = detail.documentNumber.replace(/^[^\d]+/, '').trim();
             const document = await queryRunner.manager.createQueryBuilder(FinancialDocument, 'fd')
               .where('fd.documentNumber = :docNum', { docNum: cleanDocNum })
               .andWhere('fd.amountPaid < fd.total')
               .getOne();
 
-            if (document) {
-              const newAmountPaid = Number(document.amountPaid) + Number(detail.amount);
-              if (newAmountPaid > Number(document.total)) {
-                throw new BadRequestException(`El monto a pagar ($${detail.amount}) excede el saldo pendiente del documento ${document.documentNumber}`);
-              }
-              document.amountPaid = newAmountPaid;
-              await queryRunner.manager.save(document);
-              docId = document.id;
-              docType = DocumentPaymentType.FINANCIAL;
-            } else {
-              // Buscar en ElectronicDocumentRegistration
-              const electronicDoc = await queryRunner.manager.createQueryBuilder(ElectronicDocumentRegistration, 'edr')
-                .where('(edr.documentNumber = :docNum OR edr.documentLabel = :docNum)', { docNum: detail.documentNumber })
-                .andWhere('edr.amountPaid < edr.total')
-                .getOne();
+            const electronicDoc = await queryRunner.manager.createQueryBuilder(ElectronicDocumentRegistration, 'edr')
+              .where('(edr.documentNumber = :docNum OR edr.documentLabel = :docNum)', { docNum: detail.documentNumber })
+              .andWhere('edr.amountPaid < edr.total')
+              .getOne();
 
-              if (electronicDoc) {
-                const newAmountPaid = Number(electronicDoc.amountPaid) + Number(detail.amount);
-                if (newAmountPaid > Number(electronicDoc.total)) {
-                  throw new BadRequestException(`El monto a pagar ($${detail.amount}) excede el saldo pendiente del documento ${electronicDoc.documentNumber}`);
-                }
-                electronicDoc.amountPaid = newAmountPaid;
-                await queryRunner.manager.save(electronicDoc);
-                docId = electronicDoc.id;
-                docType = DocumentPaymentType.ELECTRONIC;
-              } else {
-                // Si no se encontró documento con saldo, intentamos buscar cualquiera para lanzar el error
-                const paidDoc = await queryRunner.manager.createQueryBuilder(FinancialDocument, 'fd')
-                  .where('fd.documentNumber = :docNum', { docNum: cleanDocNum })
-                  .getOne();
-                if (paidDoc) {
-                  throw new BadRequestException(`El documento ${paidDoc.documentNumber} ya se encuentra pagado en su totalidad.`);
-                }
-                const paidElecDoc = await queryRunner.manager.createQueryBuilder(ElectronicDocumentRegistration, 'edr')
-                  .where('(edr.documentNumber = :docNum OR edr.documentLabel = :docNum)', { docNum: detail.documentNumber })
-                  .getOne();
-                if (paidElecDoc) {
-                  throw new BadRequestException(`El documento electrónico ${paidElecDoc.documentNumber} ya se encuentra pagado en su totalidad.`);
-                }
+            if (!document && !electronicDoc) {
+              // Si no se encontró documento con saldo, intentamos buscar cualquiera para lanzar el error
+              const paidDoc = await queryRunner.manager.createQueryBuilder(FinancialDocument, 'fd')
+                .where('fd.documentNumber = :docNum', { docNum: cleanDocNum })
+                .getOne();
+              if (paidDoc) {
+                throw new BadRequestException(`El documento ${paidDoc.documentNumber} ya se encuentra pagado en su totalidad.`);
+              }
+              const paidElecDoc = await queryRunner.manager.createQueryBuilder(ElectronicDocumentRegistration, 'edr')
+                .where('(edr.documentNumber = :docNum OR edr.documentLabel = :docNum)', { docNum: detail.documentNumber })
+                .getOne();
+              if (paidElecDoc) {
+                throw new BadRequestException(`El documento electrónico ${paidElecDoc.documentNumber} ya se encuentra pagado en su totalidad.`);
               }
             }
 
-            // Crear el registro en DocumentPayment
-            if (docId && docType) {
+            const detailAmount = Number(detail.amount);
+
+            if (document) {
+              const pending = Number(document.total) - Number(document.amountPaid);
+              if (!electronicDoc && detailAmount > pending) {
+                throw new BadRequestException(`El monto a pagar ($${detailAmount}) excede el saldo pendiente del documento ${document.documentNumber}`);
+              }
+              const amountToApply = Math.min(detailAmount, pending);
+              document.amountPaid = Number(document.amountPaid) + amountToApply;
+              await queryRunner.manager.save(document);
+
               const paymentRecord = queryRunner.manager.create(DocumentPayment, {
-                documentId: docId,
-                documentType: docType,
-                amount: Number(detail.amount),
+                documentId: document.id,
+                documentType: DocumentPaymentType.FINANCIAL,
+                amount: amountToApply,
                 transactionType: PaymentTransactionType.BANK,
                 transactionId: saved.id
               });
               await queryRunner.manager.save(paymentRecord);
             }
+
+            if (electronicDoc) {
+              const pending = Number(electronicDoc.total) - Number(electronicDoc.amountPaid);
+              if (!document && detailAmount > pending) {
+                throw new BadRequestException(`El monto a pagar ($${detailAmount}) excede el saldo pendiente del documento electrónico ${electronicDoc.documentNumber}`);
+              }
+              const amountToApply = Math.min(detailAmount, pending);
+              electronicDoc.amountPaid = Number(electronicDoc.amountPaid) + amountToApply;
+              await queryRunner.manager.save(electronicDoc);
+
+              const paymentRecord = queryRunner.manager.create(DocumentPayment, {
+                documentId: electronicDoc.id,
+                documentType: DocumentPaymentType.ELECTRONIC,
+                amount: amountToApply,
+                transactionType: PaymentTransactionType.BANK,
+                transactionId: saved.id
+              });
+              await queryRunner.manager.save(paymentRecord);
+            }
+
+
           }
         }
       }
