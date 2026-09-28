@@ -142,6 +142,23 @@ export class BankTransactionService {
       }
 
       // GENERAR ASIENTO CONTABLE SI APLICA
+      let cashBasisAccountId = null;
+      if (saved.details && saved.details.length > 0) {
+        for (const detail of saved.details) {
+          if (detail.sourceType === 'DOCUMENT' && detail.documentNumber) {
+            const cleanDocNum = detail.documentNumber.replace(/^[^\d]+/, '').trim();
+            const document = await queryRunner.manager.createQueryBuilder(FinancialDocument, 'fd')
+              .where('fd.documentNumber = :docNum', { docNum: cleanDocNum }).getOne();
+            if (document) {
+              const linesRes = await queryRunner.manager.query(`SELECT data FROM financial_document_lines WHERE "documentId" = $1 LIMIT 1`, [document.id]);
+              if (linesRes && linesRes.length > 0 && linesRes[0].data && linesRes[0].data.accountId) cashBasisAccountId = linesRes[0].data.accountId;
+            }
+            const electronicDoc = await queryRunner.manager.createQueryBuilder(ElectronicDocumentRegistration, 'edr')
+              .where('(edr.documentNumber = :docNum OR edr.documentLabel = :docNum)', { docNum: detail.documentNumber }).getOne();
+            if (electronicDoc && electronicDoc.payableAccountId) cashBasisAccountId = electronicDoc.payableAccountId;
+          }
+        }
+      }
       try {
         const jeLines = [];
         let bankAccountIdForJe = null;
