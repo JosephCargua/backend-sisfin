@@ -148,8 +148,16 @@ export class BankTransactionService {
                 jeLines.push({ accountId: offsetAccountId, debit: 0, credit: totalMonto, description: saved.description || 'Cobro' });
               }
            } else {
-              const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
-              if (res && res.length > 0) offsetAccountId = res[0].id;
+              // Intenta obtener la cuenta del detalle
+              if (saved.details && saved.details.length === 1 && saved.details[0].accountName) {
+                 const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE $1 LIMIT 1`, [`%${saved.details[0].accountName}%`]);
+                 if (res && res.length > 0) offsetAccountId = res[0].id;
+              }
+              // Si no se encontró, fallback a Cuentas por Pagar
+              if (!offsetAccountId) {
+                 const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
+                 if (res && res.length > 0) offsetAccountId = res[0].id;
+              }
               
               if (offsetAccountId) {
                 jeLines.push({ accountId: offsetAccountId, debit: totalMonto, credit: 0, description: saved.description || 'Pago' });

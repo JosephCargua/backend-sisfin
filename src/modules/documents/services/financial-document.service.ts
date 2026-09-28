@@ -154,12 +154,26 @@ export class FinancialDocumentService {
             console.error('Error resolving cash account ID:', e);
           }
         } else {
-          // Find "Cuentas por Pagar" or similar if not paying with petty cash
           try {
-             const res = await this.dataSource.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
-             if (res && res.length > 0) creditAccountId = res[0].id;
+             // Check if there are payment lines indicating direct payment (bypass AP)
+             const paymentLines = dto.lines.filter(l => l.lineType === FinancialDocumentLineType.PAYMENT);
+             if (paymentLines.length > 0) {
+                const pMethod = paymentLines[0].data.paymentMethod;
+                if (pMethod === '01') {
+                   const res = await this.dataSource.query(`SELECT id FROM accounts WHERE name ILIKE '%CAJA%' LIMIT 1`);
+                   if (res && res.length > 0) creditAccountId = res[0].id;
+                } else if (pMethod === '20' || pMethod === '16' || pMethod === '19') {
+                   const res = await this.dataSource.query(`SELECT id FROM accounts WHERE name ILIKE '%BANCO%' LIMIT 1`);
+                   if (res && res.length > 0) creditAccountId = res[0].id;
+                }
+             }
+
+             if (!creditAccountId) {
+                const res = await this.dataSource.query(`SELECT id FROM accounts WHERE name ILIKE '%CUENTAS POR PAGAR%' OR name ILIKE '%PROVEEDOR%' LIMIT 1`);
+                if (res && res.length > 0) creditAccountId = res[0].id;
+             }
           } catch (e) {
-             console.error('Error finding AP account', e);
+             console.error('Error finding credit account', e);
           }
         }
 
