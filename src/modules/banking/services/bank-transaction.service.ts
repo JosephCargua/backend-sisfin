@@ -7,6 +7,7 @@ import { Repository, DataSource } from 'typeorm';
 import { BankTransaction } from '../entities/bank-transaction.entity';
 import { BankTransactionDetail } from '../entities/bank-transaction-detail.entity';
 import { BankAccount } from '../entities/bank-account.entity';
+import { BankReconciliation } from '../entities/bank-reconciliation.entity';
 import { CreateBankTransactionDto } from '../dto/create-bank-transaction.dto';
 import { JournalEntry } from '../../accounting/entities/journal-entry.entity';
 import { JournalEntryLine } from '../../accounting/entities/journal-entry-line.entity';
