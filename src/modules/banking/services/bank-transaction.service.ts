@@ -189,8 +189,11 @@ export class BankTransactionService {
                 jeLines.push({ accountId: offsetAccountId, debit: 0, credit: totalMonto, description: saved.description || 'Cobro' });
               }
            } else {
+              if (cashBasisAccountId) {
+                 offsetAccountId = cashBasisAccountId;
+              }
               // Intenta obtener la cuenta del detalle
-              if (saved.details && saved.details.length === 1 && saved.details[0].accountName) {
+              else if (saved.details && saved.details.length === 1 && saved.details[0].accountName) {
                  const res = await queryRunner.manager.query(`SELECT id FROM accounts WHERE name ILIKE $1 LIMIT 1`, [`%${saved.details[0].accountName}%`]);
                  if (res && res.length > 0) offsetAccountId = res[0].id;
               }
