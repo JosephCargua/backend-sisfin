@@ -78,8 +78,11 @@ export class ElectronicDocumentRegistrationController {
     },
   })
   @ApiOperation({ summary: 'Subir XML o documento para registro electrónico' })
-  upload(@UploadedFile() file: UploadedFilePayload) {
-    return this.registrationService.uploadFile(file);
+  upload(
+    @UploadedFile() file: UploadedFilePayload,
+    @Query('targetInvoiceNumber') targetInvoiceNumber?: string,
+  ) {
+    return this.registrationService.uploadFile(file, targetInvoiceNumber);
   }
 
   @Patch(':id/review-status')

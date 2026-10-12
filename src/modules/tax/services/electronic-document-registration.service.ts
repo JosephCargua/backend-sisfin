@@ -142,6 +142,7 @@ export class ElectronicDocumentRegistrationService {
 
   async uploadFile(
     file: UploadedFilePayload,
+    targetInvoiceNumber?: string,
   ): Promise<ElectronicDocumentRegistration> {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Archivo vacío o no válido');
@@ -169,10 +170,12 @@ export class ElectronicDocumentRegistrationService {
       );
     }
 
+    const effectiveTargetNum = targetInvoiceNumber || parsed.modifiedDocumentNumber;
+
     let reason = await this.buildUploadReason(parsed);
     if (parsed.documentTypeCode === '04') {
-      reason = parsed.modifiedDocumentNumber
-        ? `Nota de Crédito que modifica Factura ${parsed.modifiedDocumentNumber}`
+      reason = effectiveTargetNum
+        ? `Nota de Crédito que modifica Factura ${effectiveTargetNum}`
         : 'Nota de Crédito (Saldo a Favor del proveedor)';
     } else if (parsed.documentTypeCode === '05') {
       reason = parsed.modifiedDocumentNumber
@@ -189,9 +192,9 @@ export class ElectronicDocumentRegistrationService {
       : DocumentProcessingStatus.PENDING_PROCESS;
 
     let linkedInvoiceId: string | null = null;
-    if (parsed.modifiedDocumentNumber) {
+    if (effectiveTargetNum) {
       const linked = await this.repository.findOne({
-        where: { documentNumber: parsed.modifiedDocumentNumber },
+        where: { documentNumber: effectiveTargetNum },
       });
       if (linked) {
         linkedInvoiceId = linked.id;
@@ -215,7 +218,7 @@ export class ElectronicDocumentRegistrationService {
       accessKey: parsed.accessKey,
       total: parsed.total,
       itemCount: parsed.itemCount,
-      modifiedDocumentNumber: parsed.modifiedDocumentNumber ?? null,
+      modifiedDocumentNumber: effectiveTargetNum ?? null,
       modifiedDocumentType: parsed.modifiedDocumentType ?? null,
       modificationReason: parsed.modificationReason ?? null,
       modifiedDocumentId: linkedInvoiceId,
@@ -223,6 +226,132 @@ export class ElectronicDocumentRegistrationService {
 
     const saved = await this.repository.save(entity);
     await this.saveLineItems(saved.id, parsed.lineItems);
+
+    // CRUCE AUTOMÁTICO INMEDIATO AL SUBIR AL SISTEMA
+    if (parsed.documentTypeCode === '04') {
+      // 1. Si es NOTA DE CRÉDITO:
+      let targetDoc: ElectronicDocumentRegistration | null = null;
+      if (effectiveTargetNum) {
+        targetDoc = await this.repository.findOne({
+          where: { documentNumber: effectiveTargetNum },
+        });
+      }
+
+      // Si no se encontró por número exacto o ya estaba pagada, buscar si el proveedor tiene una factura abierta
+      if (!targetDoc || Number(targetDoc.total || 0) <= Number(targetDoc.amountPaid || 0)) {
+        const candidateInvoices = await this.repository.find({
+          where: {
+            supplierIdentification: parsed.supplierIdentification ?? undefined,
+            documentTypeCode: '01',
+          },
+          order: { issueDate: 'DESC' },
+        });
+        const open = candidateInvoices.find(
+          (inv) => Number(inv.total || 0) > Number(inv.amountPaid || 0),
+        );
+        if (open) {
+          targetDoc = open;
+        }
+      }
+
+      if (targetDoc) {
+        const ncTotal = Number(parsed.total || 0);
+        const openBalance = Math.max(
+          0,
+          Number(targetDoc.total || 0) - Number(targetDoc.amountPaid || 0),
+        );
+        const crossAmount = Math.min(ncTotal, openBalance > 0 ? openBalance : ncTotal);
+
+        if (crossAmount > 0) {
+          targetDoc.amountPaid = Number(targetDoc.amountPaid || 0) + crossAmount;
+          targetDoc.creditNoteAmount = Number(targetDoc.creditNoteAmount || 0) + crossAmount;
+          targetDoc.reason = `NC ${saved.documentNumber} aplicada (-$${crossAmount.toFixed(2)})`;
+          await this.repository.save(targetDoc);
+
+          await this.dataSource.query(
+            `UPDATE financial_documents 
+             SET "amountPaid" = "amountPaid" + $1, "creditNoteAmount" = "creditNoteAmount" + $1 
+             WHERE "documentNumber" = $2`,
+            [crossAmount, targetDoc.documentNumber],
+          );
+
+          await this.dataSource.query(
+            `INSERT INTO document_crossings ("sourceDocumentId", "targetDocumentId", "crossingDate", "transactionMethod", "amount", "description", "createdAt")
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            [
+              saved.id,
+              targetDoc.id,
+              parsed.issueDate,
+              'Nota de Crédito',
+              crossAmount,
+              `Cruce automático por NC ${saved.documentNumber} a Factura ${targetDoc.documentNumber}`,
+            ],
+          );
+
+          await this.dataSource.query(
+            `INSERT INTO document_payments ("documentId", "documentType", "amount", "transactionType", "transactionId", "createdAt")
+             VALUES ($1, 'FINANCIAL', $2, 'crossing', $3, NOW())`,
+            [targetDoc.id, crossAmount, saved.id],
+          );
+
+          saved.modifiedDocumentNumber = targetDoc.documentNumber;
+          saved.modifiedDocumentId = targetDoc.id;
+          saved.reason = `Cruzada con Factura ${targetDoc.documentNumber} (-$${crossAmount.toFixed(2)})`;
+          saved.processingStatus = DocumentProcessingStatus.PROCESSED;
+          await this.repository.save(saved);
+        }
+      }
+    } else if (parsed.documentTypeCode === '01') {
+      // 2. Si es FACTURA:
+      const candidateNCs = await this.repository.find({
+        where: {
+          supplierIdentification: parsed.supplierIdentification ?? undefined,
+          documentTypeCode: '04',
+        },
+      });
+
+      for (const nc of candidateNCs) {
+        if (nc.modifiedDocumentNumber === parsed.documentNumber || !nc.modifiedDocumentId) {
+          const ncTotal = Number(nc.total || 0);
+          const currentBalance = Math.max(
+            0,
+            Number(saved.total || 0) - Number(saved.amountPaid || 0),
+          );
+          if (currentBalance > 0 && ncTotal > 0) {
+            const applyAmount = Math.min(ncTotal, currentBalance);
+            saved.amountPaid = Number(saved.amountPaid || 0) + applyAmount;
+            saved.creditNoteAmount = Number(saved.creditNoteAmount || 0) + applyAmount;
+            saved.reason = `NC ${nc.documentNumber} aplicada (-$${applyAmount.toFixed(2)})`;
+            await this.repository.save(saved);
+
+            nc.modifiedDocumentNumber = saved.documentNumber;
+            nc.modifiedDocumentId = saved.id;
+            nc.reason = `Cruzada con Factura ${saved.documentNumber} (-$${applyAmount.toFixed(2)})`;
+            nc.processingStatus = DocumentProcessingStatus.PROCESSED;
+            await this.repository.save(nc);
+
+            await this.dataSource.query(
+              `INSERT INTO document_crossings ("sourceDocumentId", "targetDocumentId", "crossingDate", "transactionMethod", "amount", "description", "createdAt")
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+              [
+                nc.id,
+                saved.id,
+                saved.issueDate,
+                'Nota de Crédito',
+                applyAmount,
+                `Cruce automático por NC ${nc.documentNumber} a Factura ${saved.documentNumber}`,
+              ],
+            );
+            await this.dataSource.query(
+              `INSERT INTO document_payments ("documentId", "documentType", "amount", "transactionType", "transactionId", "createdAt")
+               VALUES ($1, 'FINANCIAL', $2, 'crossing', $3, NOW())`,
+              [saved.id, applyAmount, nc.id],
+            );
+          }
+        }
+      }
+    }
+
     return saved;
   }
 
@@ -541,8 +670,10 @@ export class ElectronicDocumentRegistrationService {
           } else if (documentCategory === 'INVOICE') {
             // Verificar si previamente se cargaron Notas de Crédito para esta factura
             const existingNCs = await this.dataSource.query(
-              `SELECT id, "documentNumber", total FROM electronic_document_registrations WHERE "modifiedDocumentNumber" = $1 AND "documentTypeCode" = '04'`,
-              [doc.documentNumber]
+              `SELECT id, "documentNumber", total FROM electronic_document_registrations 
+               WHERE ("modifiedDocumentNumber" = $1 OR ("documentNumber" = $2 AND $2 != '')) 
+                 AND "documentTypeCode" = '04'`,
+              [doc.documentNumber, doc.modifiedDocumentNumber || ''],
             );
 
             let totalNCApplied = 0;
@@ -552,16 +683,34 @@ export class ElectronicDocumentRegistrationService {
                 await this.dataSource.query(
                   `INSERT INTO document_crossings ("sourceDocumentId", "targetDocumentId", "crossingDate", "transactionMethod", "amount", "description", "createdAt")
                    VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-                  [nc.id, newDocId, doc.issueDate, 'Nota de Crédito', crossAmount, `Cruce automático por NC ${nc.documentNumber}`]
+                  [
+                    nc.id,
+                    newDocId,
+                    doc.issueDate,
+                    'Nota de Crédito',
+                    crossAmount,
+                    `Cruce automático por NC ${nc.documentNumber}`,
+                  ],
                 );
                 await this.dataSource.query(
                   `INSERT INTO document_payments ("documentId", "documentType", "amount", "transactionType", "transactionId", "createdAt")
                    VALUES ($1, 'FINANCIAL', $2, 'crossing', $3, NOW())`,
-                  [newDocId, crossAmount, nc.id]
+                  [newDocId, crossAmount, nc.id],
                 );
                 await this.dataSource.query(
                   `UPDATE financial_documents SET "amountPaid" = "amountPaid" + $1, "creditNoteAmount" = "creditNoteAmount" + $1 WHERE id = $2`,
-                  [crossAmount, newDocId]
+                  [crossAmount, newDocId],
+                );
+                await this.dataSource.query(
+                  `UPDATE electronic_document_registrations 
+                   SET "modifiedDocumentNumber" = $1, "modifiedDocumentId" = $2, reason = $3, "processingStatus" = 'PROCESSED'
+                   WHERE id = $4`,
+                  [
+                    doc.documentNumber,
+                    doc.id,
+                    `Cruzada con Factura ${doc.documentNumber} (-$${crossAmount.toFixed(2)})`,
+                    nc.id,
+                  ],
                 );
                 totalNCApplied += crossAmount;
               }
@@ -584,6 +733,20 @@ export class ElectronicDocumentRegistrationService {
 
   async remove(id: string): Promise<void> {
     const doc = await this.findOne(id);
+    await this.revertCrossingsForDocument(doc);
+    await this.lineItemRepository.delete({ documentRegistrationId: id });
+    try {
+      await this.dataSource.query(
+        `DELETE FROM financial_document_lines WHERE "financialDocumentId" IN (SELECT id FROM financial_documents WHERE "documentNumber" = $1)`,
+        [doc.documentNumber],
+      );
+      await this.dataSource.query(
+        `DELETE FROM financial_documents WHERE "documentNumber" = $1`,
+        [doc.documentNumber],
+      );
+    } catch (e) {
+      console.error('Error limpiando financial_documents:', e);
+    }
     await this.repository.remove(doc);
   }
 
@@ -592,9 +755,78 @@ export class ElectronicDocumentRegistrationService {
     if (doc.isAnnulled) {
       throw new BadRequestException('El documento ya se encuentra anulado');
     }
+    await this.revertCrossingsForDocument(doc);
     doc.isAnnulled = true;
     doc.annulledDate = new Date();
     return this.repository.save(doc);
+  }
+
+  async revertCrossingsForDocument(doc: ElectronicDocumentRegistration): Promise<void> {
+    try {
+      // 1. Si era una Nota de Crédito cruzada (origen):
+      const sourceCrossings = await this.dataSource.query(
+        `SELECT * FROM document_crossings WHERE "sourceDocumentId" = $1`,
+        [doc.id],
+      );
+
+      for (const cross of sourceCrossings) {
+        const amount = Number(cross.amount || 0);
+        const targetId = cross.targetDocumentId;
+
+        if (amount > 0 && targetId) {
+          // Revertir en financial_documents
+          await this.dataSource.query(
+            `UPDATE financial_documents 
+             SET "amountPaid" = GREATEST(0, "amountPaid" - $1), 
+                 "creditNoteAmount" = GREATEST(0, "creditNoteAmount" - $1) 
+             WHERE id = $2 OR "documentNumber" = (SELECT "documentNumber" FROM electronic_document_registrations WHERE id = $2)`,
+            [amount, targetId],
+          );
+
+          // Revertir en electronic_document_registrations
+          await this.dataSource.query(
+            `UPDATE electronic_document_registrations 
+             SET "amountPaid" = GREATEST(0, "amountPaid" - $1), 
+                 "creditNoteAmount" = GREATEST(0, "creditNoteAmount" - $1),
+                 reason = NULL
+             WHERE id = $2`,
+            [amount, targetId],
+          );
+        }
+      }
+
+      // 2. Si era la Factura a la que le aplicaron notas de crédito (destino):
+      const targetCrossings = await this.dataSource.query(
+        `SELECT * FROM document_crossings WHERE "targetDocumentId" = $1`,
+        [doc.id],
+      );
+
+      for (const cross of targetCrossings) {
+        const sourceId = cross.sourceDocumentId;
+        if (sourceId) {
+          await this.dataSource.query(
+            `UPDATE electronic_document_registrations 
+             SET "modifiedDocumentNumber" = NULL, "modifiedDocumentId" = NULL, reason = 'Saldo a Favor disponible'
+             WHERE id = $1`,
+            [sourceId],
+          );
+        }
+      }
+
+      // 3. Eliminar pagos asociados de tipo 'crossing'
+      await this.dataSource.query(
+        `DELETE FROM document_payments WHERE "transactionId" = $1 OR "documentId" = $1`,
+        [doc.id],
+      );
+
+      // 4. Eliminar registros de cruce
+      await this.dataSource.query(
+        `DELETE FROM document_crossings WHERE "sourceDocumentId" = $1 OR "targetDocumentId" = $1`,
+        [doc.id],
+      );
+    } catch (e) {
+      console.error('Error revirtiendo cruces para documento:', e);
+    }
   }
 
   private toConsultView(doc: ElectronicDocumentRegistration): DocumentConsultView {
