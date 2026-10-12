@@ -98,6 +98,21 @@ export class FinancialDocument {
   @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
   amountPaid: number;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  modifiedDocumentNumber: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  modifiedDocumentId: string | null;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  creditNoteAmount: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  retentionAmountApplied: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  debitNoteAmount: number;
+
   @OneToMany(() => FinancialDocumentLine, (line) => line.document, {
     cascade: true,
     eager: true,

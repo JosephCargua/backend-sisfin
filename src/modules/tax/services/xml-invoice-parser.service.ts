@@ -21,6 +21,9 @@ export interface ParsedElectronicDocument {
   itemCount: number;
   xmlContent: string;
   lineItems: ParsedLineItem[];
+  modifiedDocumentNumber?: string | null;
+  modifiedDocumentType?: string | null;
+  modificationReason?: string | null;
 }
 
 @Injectable()
@@ -74,10 +77,42 @@ export class XmlInvoiceParserService {
       null;
 
     const accessKey = this.getTagValue(normalized, 'claveAcceso');
+
+    let total: number | null = null;
     const totalStr =
       this.getTagValue(normalized, 'importeTotal') ||
-      this.getTagValue(normalized, 'valorTotal');
-    const total = totalStr ? parseFloat(totalStr) : null;
+      this.getTagValue(normalized, 'valorTotal') ||
+      this.getTagValue(normalized, 'valorModificacion');
+    if (totalStr) {
+      total = parseFloat(totalStr);
+    } else if (codDoc === '07') {
+      const retMatches: string[] = normalized.match(/<valorRetenido[^>]*>([^<]*)<\/valorRetenido>/gi) || [];
+      const sumRet: number = retMatches.reduce((acc: number, m: string): number => {
+        const val = parseFloat(m.replace(/<\/?valorRetenido[^>]*>/gi, '').trim());
+        return acc + (isNaN(val) ? 0 : val);
+      }, 0);
+      total = sumRet > 0 ? Math.round(sumRet * 100) / 100 : null;
+    }
+
+    let modifiedDocumentNumber: string | null = null;
+    let modifiedDocumentType: string | null = null;
+    let modificationReason: string | null = null;
+
+    if (codDoc === '04' || codDoc === '05') {
+      const rawModNum = this.getTagValue(normalized, 'numDocModificado');
+      if (rawModNum) {
+        modifiedDocumentNumber = this.formatDocumentNumber(rawModNum);
+      }
+      modifiedDocumentType = this.getTagValue(normalized, 'codDocModificado') || '01';
+      modificationReason = this.getTagValue(normalized, 'motivo') || null;
+    } else if (codDoc === '07') {
+      const rawModNum = this.getTagValue(normalized, 'numDocSustento');
+      if (rawModNum) {
+        modifiedDocumentNumber = this.formatDocumentNumber(rawModNum);
+      }
+      modifiedDocumentType = this.getTagValue(normalized, 'codDocSustento') || '01';
+    }
+
     const lineItems = this.parseLineItems(normalized);
     const itemCount = lineItems.length;
 
@@ -94,6 +129,9 @@ export class XmlInvoiceParserService {
       itemCount,
       xmlContent: normalized,
       lineItems,
+      modifiedDocumentNumber,
+      modifiedDocumentType,
+      modificationReason,
     };
   }
 
@@ -145,18 +183,6 @@ export class XmlInvoiceParserService {
 
   private extractInvoiceXml(content: string): string | null {
     const trimmed = content.trim();
-    if (trimmed.includes('<factura')) {
-      return trimmed;
-    }
-    if (trimmed.includes('<comprobanteRetencion')) {
-      return trimmed;
-    }
-    if (trimmed.includes('<notaCredito')) {
-      return trimmed;
-    }
-    if (trimmed.includes('<notaDebito')) {
-      return trimmed;
-    }
 
     const cdataMatch = trimmed.match(
       /<comprobante[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/comprobante>/i,
@@ -170,7 +196,31 @@ export class XmlInvoiceParserService {
       return innerMatch[1].trim();
     }
 
+    if (trimmed.includes('<factura')) {
+      return trimmed;
+    }
+    if (trimmed.includes('<comprobanteRetencion')) {
+      return trimmed;
+    }
+    if (trimmed.includes('<notaCredito')) {
+      return trimmed;
+    }
+    if (trimmed.includes('<notaDebito')) {
+      return trimmed;
+    }
+
     return null;
+  }
+
+  private formatDocumentNumber(raw: string): string {
+    const cleaned = raw.trim();
+    if (cleaned.includes('-')) {
+      return cleaned;
+    }
+    if (cleaned.length === 15) {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    }
+    return cleaned;
   }
 
   private getTagValue(xml: string, tag: string): string | null {

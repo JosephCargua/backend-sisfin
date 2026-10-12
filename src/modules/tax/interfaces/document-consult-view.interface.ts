@@ -33,4 +33,10 @@ export interface DocumentConsultView {
   updatePersonData: boolean;
   isAnnulled: boolean;
   annulledDate: Date | null;
+  modifiedDocumentNumber?: string | null;
+  modifiedDocumentType?: string | null;
+  modificationReason?: string | null;
+  creditNoteAmount?: number;
+  retentionAmountApplied?: number;
+  debitNoteAmount?: number;
 }

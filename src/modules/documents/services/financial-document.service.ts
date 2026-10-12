@@ -176,7 +176,9 @@ export class FinancialDocumentService {
       authorization: parsed.accessKey,
       personName: parsed.supplierName,
       personIdentification: parsed.supplierIdentification,
-      documentCategory: 'INVOICE',
+      documentCategory: parsed.documentTypeCode === '04' ? 'CREDIT_NOTE' : (parsed.documentTypeCode === '05' ? 'DEBIT_NOTE' : 'INVOICE'),
+      modifiedDocumentNumber: parsed.modifiedDocumentNumber || null,
+      modificationReason: parsed.modificationReason || null,
       payableAccountId: homologation?.payableAccountId || null,
       lines: serviceLines,
       totals: {

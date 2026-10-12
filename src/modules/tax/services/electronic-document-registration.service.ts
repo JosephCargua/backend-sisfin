@@ -169,10 +169,34 @@ export class ElectronicDocumentRegistrationService {
       );
     }
 
-    const reason = await this.buildUploadReason(parsed);
-    const processingStatus = reason
+    let reason = await this.buildUploadReason(parsed);
+    if (parsed.documentTypeCode === '04') {
+      reason = parsed.modifiedDocumentNumber
+        ? `Nota de Crédito que modifica Factura ${parsed.modifiedDocumentNumber}`
+        : 'Nota de Crédito (Saldo a Favor del proveedor)';
+    } else if (parsed.documentTypeCode === '05') {
+      reason = parsed.modifiedDocumentNumber
+        ? `Nota de Débito que modifica Factura ${parsed.modifiedDocumentNumber}`
+        : 'Nota de Débito';
+    } else if (parsed.documentTypeCode === '07') {
+      reason = parsed.modifiedDocumentNumber
+        ? `Comprobante de Retención para Factura ${parsed.modifiedDocumentNumber}`
+        : 'Comprobante de Retención';
+    }
+
+    const processingStatus = reason && parsed.documentTypeCode === '01'
       ? DocumentProcessingStatus.PARTIAL
       : DocumentProcessingStatus.PENDING_PROCESS;
+
+    let linkedInvoiceId: string | null = null;
+    if (parsed.modifiedDocumentNumber) {
+      const linked = await this.repository.findOne({
+        where: { documentNumber: parsed.modifiedDocumentNumber },
+      });
+      if (linked) {
+        linkedInvoiceId = linked.id;
+      }
+    }
 
     const entity = this.repository.create({
       issueDate: parsed.issueDate,
@@ -191,6 +215,10 @@ export class ElectronicDocumentRegistrationService {
       accessKey: parsed.accessKey,
       total: parsed.total,
       itemCount: parsed.itemCount,
+      modifiedDocumentNumber: parsed.modifiedDocumentNumber ?? null,
+      modifiedDocumentType: parsed.modifiedDocumentType ?? null,
+      modificationReason: parsed.modificationReason ?? null,
+      modifiedDocumentId: linkedInvoiceId,
     });
 
     const saved = await this.repository.save(entity);
@@ -263,6 +291,12 @@ export class ElectronicDocumentRegistrationService {
     doc.retentionIvaCode = dto.retentionIvaCode ?? null;
     doc.generateRetention = dto.generateRetention ?? false;
     doc.updatePersonData = dto.updatePersonData ?? false;
+    if (dto.modifiedDocumentNumber !== undefined) {
+      doc.modifiedDocumentNumber = dto.modifiedDocumentNumber || null;
+    }
+    if (dto.modificationReason !== undefined) {
+      doc.modificationReason = dto.modificationReason || null;
+    }
     doc.reviewStatus = DocumentReviewStatus.REVIEWED;
     doc.processingStatus = DocumentProcessingStatus.PENDING_PROCESS;
     doc.reason = null;
@@ -396,6 +430,18 @@ export class ElectronicDocumentRegistrationService {
       [doc.documentNumber]
     );
 
+    let documentCategory = 'INVOICE';
+    if (doc.documentTypeCode === '04') documentCategory = 'CREDIT_NOTE';
+    else if (doc.documentTypeCode === '05') documentCategory = 'DEBIT_NOTE';
+    else if (doc.documentTypeCode === '07') documentCategory = 'RETENTION';
+    else if (doc.documentTypeCode === '03') documentCategory = 'PURCHASE_LIQUIDATION';
+
+    const docDescription = documentCategory === 'CREDIT_NOTE'
+      ? `Nota de Crédito ${doc.documentNumber} - ${doc.supplierName} (Modifica FAC ${doc.modifiedDocumentNumber || 'S/N'})`
+      : (documentCategory === 'DEBIT_NOTE'
+        ? `Nota de Débito ${doc.documentNumber} - ${doc.supplierName} (Modifica FAC ${doc.modifiedDocumentNumber || 'S/N'})`
+        : `Factura ${doc.documentNumber} - ${doc.supplierName}`);
+
     if (existing.length === 0 && financialLines.length > 0) {
       try {
         // Insertar el documento financiero
@@ -404,13 +450,13 @@ export class ElectronicDocumentRegistrationService {
            ("issueDate", "personType", "documentCategory", "entryType", "documentNumber", "authorization",
             "personId", "personName", "personIdentification",
             "subtotal15", "subtotal5", "subtotal0", "discount", "iva15", "iva5", "ice", "total",
-            "dueDays", "description", "payWithPettyCash", "createdAt", "updatedAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$21)
+            "dueDays", "description", "payWithPettyCash", "modifiedDocumentNumber", "createdAt", "updatedAt")
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22)
            RETURNING id`,
           [
             doc.issueDate,
             'SUPPLIER',
-            'INVOICE',
+            documentCategory,
             'PURCHASE_EXPENSE',
             doc.documentNumber,
             doc.accessKey || null,
@@ -426,8 +472,9 @@ export class ElectronicDocumentRegistrationService {
             0,
             total,
             0,
-            `Factura ${doc.documentNumber} - ${doc.supplierName}`,
+            docDescription,
             false,
+            doc.modifiedDocumentNumber || null,
             new Date(),
           ]
         );
@@ -440,6 +487,90 @@ export class ElectronicDocumentRegistrationService {
                VALUES ($1, $2, $3, $4)`,
               [newDocId, line.lineType, line.sortOrder, line.data]
             );
+          }
+
+          // LÓGICA DE CRUCE AUTOMÁTICO
+          if (documentCategory === 'CREDIT_NOTE' && doc.modifiedDocumentNumber) {
+            const crossAmount = Number(doc.total || 0);
+
+            // Buscar la factura de destino en financial_documents
+            const finTarget = await this.dataSource.query(
+              `SELECT id, "documentNumber", total, "amountPaid" FROM financial_documents WHERE "documentNumber" = $1 LIMIT 1`,
+              [doc.modifiedDocumentNumber]
+            );
+
+            if (finTarget && finTarget.length > 0) {
+              const target = finTarget[0];
+              await this.dataSource.query(
+                `INSERT INTO document_crossings ("sourceDocumentId", "targetDocumentId", "crossingDate", "transactionMethod", "amount", "description", "createdAt")
+                 VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+                [
+                  newDocId,
+                  target.id,
+                  doc.issueDate,
+                  'Nota de Crédito',
+                  crossAmount,
+                  `Cruce automático por NC ${doc.documentNumber} a FAC ${target.documentNumber}`
+                ]
+              );
+
+              await this.dataSource.query(
+                `INSERT INTO document_payments ("documentId", "documentType", "amount", "transactionType", "transactionId", "createdAt")
+                 VALUES ($1, 'FINANCIAL', $2, 'crossing', $3, NOW())`,
+                [target.id, crossAmount, newDocId]
+              );
+
+              await this.dataSource.query(
+                `UPDATE financial_documents SET "amountPaid" = "amountPaid" + $1, "creditNoteAmount" = "creditNoteAmount" + $1 WHERE id = $2`,
+                [crossAmount, target.id]
+              );
+            }
+
+            // También actualizar en electronic_document_registrations si existe
+            const targetElec = await this.repository.findOne({
+              where: { documentNumber: doc.modifiedDocumentNumber }
+            });
+            if (targetElec) {
+              targetElec.amountPaid = Number(targetElec.amountPaid || 0) + crossAmount;
+              targetElec.creditNoteAmount = Number(targetElec.creditNoteAmount || 0) + crossAmount;
+              targetElec.reason = `NC ${doc.documentNumber} aplicada (-$${crossAmount.toFixed(2)})`;
+              await this.repository.save(targetElec);
+            }
+
+            doc.reason = `Cruzada con Factura ${doc.modifiedDocumentNumber} (-$${crossAmount.toFixed(2)})`;
+          } else if (documentCategory === 'INVOICE') {
+            // Verificar si previamente se cargaron Notas de Crédito para esta factura
+            const existingNCs = await this.dataSource.query(
+              `SELECT id, "documentNumber", total FROM electronic_document_registrations WHERE "modifiedDocumentNumber" = $1 AND "documentTypeCode" = '04'`,
+              [doc.documentNumber]
+            );
+
+            let totalNCApplied = 0;
+            for (const nc of existingNCs) {
+              const crossAmount = Number(nc.total || 0);
+              if (crossAmount > 0) {
+                await this.dataSource.query(
+                  `INSERT INTO document_crossings ("sourceDocumentId", "targetDocumentId", "crossingDate", "transactionMethod", "amount", "description", "createdAt")
+                   VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+                  [nc.id, newDocId, doc.issueDate, 'Nota de Crédito', crossAmount, `Cruce automático por NC ${nc.documentNumber}`]
+                );
+                await this.dataSource.query(
+                  `INSERT INTO document_payments ("documentId", "documentType", "amount", "transactionType", "transactionId", "createdAt")
+                   VALUES ($1, 'FINANCIAL', $2, 'crossing', $3, NOW())`,
+                  [newDocId, crossAmount, nc.id]
+                );
+                await this.dataSource.query(
+                  `UPDATE financial_documents SET "amountPaid" = "amountPaid" + $1, "creditNoteAmount" = "creditNoteAmount" + $1 WHERE id = $2`,
+                  [crossAmount, newDocId]
+                );
+                totalNCApplied += crossAmount;
+              }
+            }
+            if (totalNCApplied > 0) {
+              doc.amountPaid = Number(doc.amountPaid || 0) + totalNCApplied;
+              doc.creditNoteAmount = Number(doc.creditNoteAmount || 0) + totalNCApplied;
+              doc.reason = `NC aplicada (-$${totalNCApplied.toFixed(2)})`;
+            }
           }
         }
       } catch (e) {
@@ -470,16 +601,20 @@ export class ElectronicDocumentRegistrationService {
     const total = Number(doc.total ?? 0);
     const netAmount = total > 0 ? total / 1.15 : 0;
     const taxAmount = total > 0 ? total - netAmount : 0;
-    let retentionAmount = 0;
-    if (doc.generateRetention && doc.retentionIrCode) {
-      retentionAmount = netAmount * 0.01;
-    }
-    if (doc.generateRetention && doc.retentionIvaCode) {
-      retentionAmount += taxAmount * 0.3;
+    let retentionAmount = Number(doc.retentionAmountApplied ?? 0);
+    if (retentionAmount === 0) {
+      if (doc.generateRetention && doc.retentionIrCode) {
+        retentionAmount += netAmount * 0.01;
+      }
+      if (doc.generateRetention && doc.retentionIvaCode) {
+        retentionAmount += taxAmount * 0.3;
+      }
     }
 
+    const creditNoteAmount = Number(doc.creditNoteAmount ?? 0);
+    const debitNoteAmount = Number(doc.debitNoteAmount ?? 0);
     const amountPaid = Number(doc.amountPaid ?? 0);
-    const balance = total - amountPaid;
+    const balance = Math.max(0, Math.round(((total + debitNoteAmount) - amountPaid) * 100) / 100);
     const isPaid = balance <= 0 && total > 0;
 
     return {
@@ -498,7 +633,7 @@ export class ElectronicDocumentRegistrationService {
       taxAmount: Math.round(taxAmount * 100) / 100,
       total: Math.round(total * 100) / 100,
       amountPaid: Math.round(amountPaid * 100) / 100,
-      balance: Math.round(balance * 100) / 100,
+      balance: balance,
       isPaid: isPaid,
       retentionAmount: Math.round(retentionAmount * 100) / 100,
       statusLabel: this.getStatusLabel(doc),
@@ -514,6 +649,12 @@ export class ElectronicDocumentRegistrationService {
       updatePersonData: doc.updatePersonData,
       isAnnulled: doc.isAnnulled,
       annulledDate: doc.annulledDate,
+      modifiedDocumentNumber: doc.modifiedDocumentNumber,
+      modifiedDocumentType: doc.modifiedDocumentType,
+      modificationReason: doc.modificationReason,
+      creditNoteAmount: Math.round(creditNoteAmount * 100) / 100,
+      retentionAmountApplied: Math.round(retentionAmount * 100) / 100,
+      debitNoteAmount: Math.round(debitNoteAmount * 100) / 100,
     };
   }
 

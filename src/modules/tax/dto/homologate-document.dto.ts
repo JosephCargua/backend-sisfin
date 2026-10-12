@@ -36,4 +36,12 @@ export class HomologateDocumentDto {
   @IsOptional()
   @IsBoolean()
   updatePersonData?: boolean;
+
+  @IsOptional()
+  @IsString()
+  modifiedDocumentNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  modificationReason?: string;
 }
